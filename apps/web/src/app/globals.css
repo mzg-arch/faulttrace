@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #07111c;
+  color: #e9f1f7;
+}
+
+::selection {
+  background: #67d8f4;
+  color: #07111c;
+}
+
+.faulttrace-grid {
+  background-image:
+    linear-gradient(rgba(117, 154, 180, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(117, 154, 180, 0.09) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.faulttrace-glow {
+  background: radial-gradient(circle, rgba(32, 122, 160, 0.22), transparent 65%);
+}

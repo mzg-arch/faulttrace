@@ -1,0 +1,9 @@
+{
+  "editor.formatOnSave": true,
+  "files.exclude": {
+    "**/.next": true,
+    "**/__pycache__": true
+  },
+  "python.analysis.extraPaths": ["./apps/api"],
+  "typescript.tsdk": "apps/web/node_modules/typescript/lib"
+}

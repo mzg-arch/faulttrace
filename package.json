@@ -1,0 +1,16 @@
+{
+  "name": "faulttrace",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace @faulttrace/web",
+    "build:web": "npm run build --workspace @faulttrace/web",
+    "lint:web": "npm run lint --workspace @faulttrace/web"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}
