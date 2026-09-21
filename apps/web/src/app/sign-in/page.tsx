@@ -1,8 +1,14 @@
 import Link from "next/link";
 
 import { BrandMark } from "@/components/brand-mark";
+import { SignInForm } from "./sign-in-form";
 
-export default function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ notice?: string }>;
+}) {
+  const { notice } = await searchParams;
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#07111c]">
       <div aria-hidden="true" className="faulttrace-grid pointer-events-none absolute inset-0 opacity-40" />
@@ -50,41 +56,18 @@ export default function SignInPage() {
               Sign in with your company account to continue to FaultTrace.
             </p>
 
-            <div className="mt-8 space-y-5" aria-describedby="sign-in-status">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-slate-200">Work email</label>
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@company.com"
-                  disabled
-                  className="mt-2 w-full rounded-xl border border-white/10 bg-[#091522] px-4 py-3.5 text-slate-400 placeholder:text-slate-600 disabled:cursor-not-allowed"
-                />
-              </div>
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-slate-200">Password</label>
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="Enter your password"
-                  disabled
-                  className="mt-2 w-full rounded-xl border border-white/10 bg-[#091522] px-4 py-3.5 text-slate-400 placeholder:text-slate-600 disabled:cursor-not-allowed"
-                />
-              </div>
-              <button
-                type="button"
-                disabled
-                className="w-full rounded-xl bg-cyan-300/45 px-4 py-3.5 text-sm font-bold text-[#07111c] disabled:cursor-not-allowed"
-              >
-                Sign in to FaultTrace
-              </button>
-            </div>
+            {notice === "invalid-invite" && (
+              <p role="alert" className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/5 px-4 py-3 text-sm leading-6 text-amber-100">
+                This invitation link is invalid or expired. Ask your workspace administrator for help.
+              </p>
+            )}
+            {notice === "invite-unavailable" && (
+              <p role="alert" className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/5 px-4 py-3 text-sm leading-6 text-amber-100">
+                FaultTrace could not complete the invitation right now. Open the invitation link again in a moment.
+              </p>
+            )}
 
-            <p id="sign-in-status" role="status" className="mt-6 rounded-xl border border-amber-300/20 bg-amber-300/5 px-4 py-3 text-sm leading-6 text-amber-100">
-              Preview only. Sign-in is not active yet, and this page does not submit credentials.
-            </p>
+            <SignInForm />
           </section>
         </div>
       </div>
