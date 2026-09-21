@@ -3,9 +3,11 @@ import type { ReactNode } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { DocumentManagement } from "./document-management";
 import { EquipmentManagement } from "./equipment-management";
 import { SignOutButton } from "./sign-out-button";
 import { TeamAccess } from "./team-access";
+import { TechnicianDocuments } from "./technician-documents";
 import { TechnicianEquipment } from "./technician-equipment";
 
 const adminAreas = [
@@ -25,7 +27,7 @@ const adminAreas = [
     number: "03",
     title: "Documents",
     description: "Curate approved manuals, diagrams, bulletins, and fault-code sheets.",
-    status: "Coming soon",
+    status: "Available",
   },
 ];
 
@@ -38,12 +40,18 @@ const technicianAreas = [
   },
   {
     number: "02",
+    title: "Documents",
+    description: "Search and open approved maintenance sources for your workspace.",
+    status: "Available",
+  },
+  {
+    number: "03",
     title: "Active troubleshooting",
     description: "Work through supported checks one step at a time.",
     status: "Coming soon",
   },
   {
-    number: "03",
+    number: "04",
     title: "Recent cases",
     description: "Revisit repairs your team chose to document and share.",
     status: "Coming soon",
@@ -185,7 +193,10 @@ export default async function DashboardPage() {
         </p>
       </section>
 
-      <section aria-label={isAdmin ? "Administration areas" : "Technician areas"} className="grid gap-4 md:grid-cols-3">
+      <section
+        aria-label={isAdmin ? "Administration areas" : "Technician areas"}
+        className="grid gap-4 md:grid-cols-3"
+      >
         {areas.map((area) => (
           <article key={area.number} className="rounded-2xl border border-white/10 bg-[#101e2d]/85 p-6">
             <div className="flex items-center justify-between">
@@ -201,10 +212,14 @@ export default async function DashboardPage() {
       {isAdmin ? (
         <>
           <EquipmentManagement workspaceId={workspaceResult.data.id} />
+          <DocumentManagement workspaceId={workspaceResult.data.id} />
           <TeamAccess workspaceId={workspaceResult.data.id} />
         </>
       ) : (
-        <TechnicianEquipment workspaceId={workspaceResult.data.id} />
+        <>
+          <TechnicianEquipment workspaceId={workspaceResult.data.id} />
+          <TechnicianDocuments workspaceId={workspaceResult.data.id} />
+        </>
       )}
 
       <p className="my-10 max-w-3xl border-t border-white/10 pt-6 text-sm leading-7 text-slate-400">

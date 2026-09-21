@@ -4,6 +4,7 @@ import asyncio
 import logging
 import re
 from typing import Any
+from urllib.parse import quote, urlparse
 
 import httpx
 
@@ -76,6 +77,8 @@ class SupabaseRequestError(Exception):
 
 
 class SupabaseGateway:
+    document_bucket = "faulttrace-sources"
+
     def __init__(self, settings: Settings) -> None:
         self.url = settings.supabase_url.strip().rstrip("/")
         self.publishable_key = settings.supabase_publishable_key.strip()
@@ -343,6 +346,186 @@ class SupabaseGateway:
         records = response.json()
         return records[0] if records else None
 
+    async def get_equipment(
+        self,
+        workspace_id: str,
+        equipment_id: str,
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "GET",
+            "/rest/v1/equipment",
+            key=self.secret_key,
+            params={
+                "select": "id,name,asset_tag,status",
+                "workspace_id": f"eq.{workspace_id}",
+                "id": f"eq.{equipment_id}",
+                "limit": "1",
+            },
+            operation="get_equipment",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def list_documents(
+        self,
+        workspace_id: str,
+        *,
+        include_archived: bool,
+    ) -> list[dict[str, Any]]:
+        params = {
+            "select": (
+                "id,title,document_type,status,equipment_id,source_revision,description,"
+                "file_name,content_type,size_bytes,created_at,updated_at"
+            ),
+            "workspace_id": f"eq.{workspace_id}",
+            "order": "title.asc,created_at.desc",
+        }
+        if not include_archived:
+            params["status"] = "eq.approved"
+        response = await self._request(
+            "GET",
+            "/rest/v1/documents",
+            key=self.secret_key,
+            params=params,
+            operation="list_documents",
+        )
+        return response.json()
+
+    async def create_document(self, document: dict[str, Any]) -> dict[str, Any]:
+        response = await self._request(
+            "POST",
+            "/rest/v1/documents",
+            key=self.secret_key,
+            json=document,
+            headers={"Prefer": "return=representation"},
+            operation="create_document",
+        )
+        records = response.json()
+        return records[0] if records else {}
+
+    async def update_document(
+        self,
+        workspace_id: str,
+        document_id: str,
+        metadata: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "PATCH",
+            "/rest/v1/documents",
+            key=self.secret_key,
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "id": f"eq.{document_id}",
+            },
+            json=metadata,
+            headers={"Prefer": "return=representation"},
+            operation="update_document",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def archive_document(
+        self,
+        workspace_id: str,
+        document_id: str,
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "PATCH",
+            "/rest/v1/documents",
+            key=self.secret_key,
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "id": f"eq.{document_id}",
+            },
+            json={"status": "archived"},
+            headers={"Prefer": "return=representation"},
+            operation="archive_document",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def get_document_for_access(
+        self,
+        workspace_id: str,
+        document_id: str,
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "GET",
+            "/rest/v1/documents",
+            key=self.secret_key,
+            params={
+                "select": "id,status,storage_path,file_name",
+                "workspace_id": f"eq.{workspace_id}",
+                "id": f"eq.{document_id}",
+                "limit": "1",
+            },
+            operation="get_document_for_access",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def upload_document_file(
+        self,
+        storage_path: str,
+        content_type: str,
+        content: bytes,
+    ) -> None:
+        encoded_path = quote(storage_path, safe="/")
+        await self._request(
+            "POST",
+            f"/storage/v1/object/{self.document_bucket}/{encoded_path}",
+            key=self.secret_key,
+            content=content,
+            headers={"Content-Type": content_type, "x-upsert": "false"},
+            operation="upload_document_file",
+        )
+
+    async def remove_document_file(self, storage_path: str) -> None:
+        encoded_path = quote(storage_path, safe="/")
+        await self._request(
+            "DELETE",
+            f"/storage/v1/object/{self.document_bucket}/{encoded_path}",
+            key=self.secret_key,
+            operation="remove_document_file",
+        )
+
+    async def create_document_signed_url(
+        self,
+        storage_path: str,
+        *,
+        expires_in: int,
+    ) -> str:
+        encoded_path = quote(storage_path, safe="/")
+        response = await self._request(
+            "POST",
+            f"/storage/v1/object/sign/{self.document_bucket}/{encoded_path}",
+            key=self.secret_key,
+            json={"expiresIn": expires_in},
+            operation="create_document_signed_url",
+        )
+        payload = response.json()
+        signed_path = payload.get("signedURL") or payload.get("signedUrl")
+        if not isinstance(signed_path, str) or not signed_path:
+            raise SupabaseRequestError(
+                502,
+                "create_document_signed_url",
+                "invalid_response",
+                "Supabase did not return a signed document URL",
+            )
+        if signed_path.startswith("/storage/v1/"):
+            return f"{self.url}{signed_path}"
+        if signed_path.startswith("/object/"):
+            return f"{self.url}/storage/v1{signed_path}"
+        parsed = urlparse(signed_path)
+        if parsed.scheme in {"http", "https"} and parsed.netloc == urlparse(self.url).netloc:
+            return signed_path
+        raise SupabaseRequestError(
+            502,
+            "create_document_signed_url",
+            "invalid_response",
+            "Supabase returned an invalid signed document URL",
+        )
+
     async def _request(
         self,
         method: str,
@@ -353,6 +536,7 @@ class SupabaseGateway:
         bearer: str | None = None,
         params: dict[str, str] | None = None,
         json: dict[str, Any] | None = None,
+        content: bytes | None = None,
         headers: dict[str, str] | None = None,
     ) -> httpx.Response:
         request_headers = {"apikey": key, "Accept": "application/json"}
@@ -373,6 +557,7 @@ class SupabaseGateway:
                     headers=request_headers,
                     params=params,
                     json=json,
+                    content=content,
                 )
         except httpx.RequestError as error:
             logger.error(
