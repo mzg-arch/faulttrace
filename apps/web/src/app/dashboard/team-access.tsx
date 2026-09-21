@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
+import { API_ORIGIN, apiErrorMessage, getAccessToken } from "@/lib/faulttrace-api";
 
 type Role = "admin" | "technician";
 
@@ -19,26 +19,6 @@ type InviteResponse = {
   member: Member;
 };
 
-const API_ORIGIN = "http://localhost:8000";
-
-async function accessToken() {
-  const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase.auth.getSession();
-  if (error || !data.session?.access_token) {
-    throw new Error("Your session has expired. Sign in again.");
-  }
-  return data.session.access_token;
-}
-
-async function safeError(response: Response, fallback: string) {
-  try {
-    const body = (await response.json()) as { detail?: string };
-    return body.detail || fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 export function TeamAccess({ workspaceId }: { workspaceId: string }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,12 +34,12 @@ export function TeamAccess({ workspaceId }: { workspaceId: string }) {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const token = await accessToken();
+      const token = await getAccessToken();
       const response = await fetch(`${API_ORIGIN}/workspaces/${workspaceId}/members`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
-        throw new Error(await safeError(response, "Team access could not be loaded."));
+        throw new Error(await apiErrorMessage(response, "Team access could not be loaded."));
       }
       setMembers((await response.json()) as Member[]);
     } catch (error) {
@@ -94,7 +74,7 @@ export function TeamAccess({ workspaceId }: { workspaceId: string }) {
 
     setIsInviting(true);
     try {
-      const token = await accessToken();
+      const token = await getAccessToken();
       const response = await fetch(`${API_ORIGIN}/workspaces/${workspaceId}/invitations`, {
         method: "POST",
         headers: {
@@ -109,7 +89,7 @@ export function TeamAccess({ workspaceId }: { workspaceId: string }) {
       });
 
       if (!response.ok) {
-        setFormError(await safeError(response, "The invitation could not be sent."));
+        setFormError(await apiErrorMessage(response, "The invitation could not be sent."));
         return;
       }
 

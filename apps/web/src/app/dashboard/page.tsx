@@ -3,24 +3,29 @@ import type { ReactNode } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { EquipmentManagement } from "./equipment-management";
 import { SignOutButton } from "./sign-out-button";
 import { TeamAccess } from "./team-access";
+import { TechnicianEquipment } from "./technician-equipment";
 
 const adminAreas = [
   {
     number: "01",
     title: "Team / Access",
     description: "Manage the people approved to work in this workspace.",
+    status: "Available",
   },
   {
     number: "02",
     title: "Equipment",
     description: "Organize the assets and equipment identifiers your team maintains.",
+    status: "Available",
   },
   {
     number: "03",
     title: "Documents",
     description: "Curate approved manuals, diagrams, bulletins, and fault-code sheets.",
+    status: "Coming soon",
   },
 ];
 
@@ -29,16 +34,19 @@ const technicianAreas = [
     number: "01",
     title: "Equipment",
     description: "Choose an asset and review its approved information.",
+    status: "Available",
   },
   {
     number: "02",
     title: "Active troubleshooting",
     description: "Work through supported checks one step at a time.",
+    status: "Coming soon",
   },
   {
     number: "03",
     title: "Recent cases",
     description: "Revisit repairs your team chose to document and share.",
+    status: "Coming soon",
   },
 ];
 
@@ -182,7 +190,7 @@ export default async function DashboardPage() {
           <article key={area.number} className="rounded-2xl border border-white/10 bg-[#101e2d]/85 p-6">
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-cyan-300">{area.number}</span>
-              <span className="text-xs font-medium uppercase tracking-[0.12em] text-slate-500">Coming soon</span>
+              <span className={area.status === "Available" ? "text-xs font-medium uppercase tracking-[0.12em] text-emerald-300" : "text-xs font-medium uppercase tracking-[0.12em] text-slate-500"}>{area.status}</span>
             </div>
             <h2 className="mt-8 text-xl font-semibold text-white">{area.title}</h2>
             <p className="mt-3 text-sm leading-7 text-slate-400">{area.description}</p>
@@ -190,7 +198,14 @@ export default async function DashboardPage() {
         ))}
       </section>
 
-      {isAdmin && <TeamAccess workspaceId={workspaceResult.data.id} />}
+      {isAdmin ? (
+        <>
+          <EquipmentManagement workspaceId={workspaceResult.data.id} />
+          <TeamAccess workspaceId={workspaceResult.data.id} />
+        </>
+      ) : (
+        <TechnicianEquipment workspaceId={workspaceResult.data.id} />
+      )}
 
       <p className="my-10 max-w-3xl border-t border-white/10 pt-6 text-sm leading-7 text-slate-400">
         FaultTrace supports qualified technicians. Follow your site&apos;s approved procedures, authorization requirements, and professional judgment.

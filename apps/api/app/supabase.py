@@ -102,21 +102,32 @@ class SupabaseGateway:
         user_id: str,
         workspace_id: str,
     ) -> bool:
+        return await self.get_workspace_role(access_token, user_id, workspace_id) == "admin"
+
+    async def get_workspace_role(
+        self,
+        access_token: str,
+        user_id: str,
+        workspace_id: str,
+    ) -> str | None:
         response = await self._request(
             "GET",
             "/rest/v1/workspace_memberships",
             key=self.publishable_key,
             bearer=access_token,
             params={
-                "select": "workspace_id",
+                "select": "role",
                 "workspace_id": f"eq.{workspace_id}",
                 "user_id": f"eq.{user_id}",
-                "role": "eq.admin",
                 "limit": "1",
             },
-            operation="verify_workspace_admin",
+            operation="verify_workspace_membership",
         )
-        return bool(response.json())
+        memberships = response.json()
+        if not memberships:
+            return None
+        role = memberships[0].get("role")
+        return role if role in ("admin", "technician") else None
 
     async def reserve_invitation(self, invitation: dict[str, Any]) -> dict[str, Any]:
         response = await self._request(
@@ -254,6 +265,83 @@ class SupabaseGateway:
             )
         except (httpx.HTTPError, SupabaseRequestError):
             pass
+
+    async def list_equipment(
+        self,
+        workspace_id: str,
+        *,
+        include_archived: bool,
+    ) -> list[dict[str, Any]]:
+        params = {
+            "select": (
+                "id,name,asset_tag,manufacturer,model,location,status,created_at,updated_at"
+            ),
+            "workspace_id": f"eq.{workspace_id}",
+            "order": "name.asc,asset_tag.asc",
+        }
+        if not include_archived:
+            params["status"] = "eq.active"
+        response = await self._request(
+            "GET",
+            "/rest/v1/equipment",
+            key=self.secret_key,
+            params=params,
+            operation="list_equipment",
+        )
+        return response.json()
+
+    async def create_equipment(self, equipment: dict[str, Any]) -> dict[str, Any]:
+        response = await self._request(
+            "POST",
+            "/rest/v1/equipment",
+            key=self.secret_key,
+            json=equipment,
+            headers={"Prefer": "return=representation"},
+            operation="create_equipment",
+        )
+        records = response.json()
+        return records[0] if records else {}
+
+    async def update_equipment(
+        self,
+        workspace_id: str,
+        equipment_id: str,
+        equipment: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "PATCH",
+            "/rest/v1/equipment",
+            key=self.secret_key,
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "id": f"eq.{equipment_id}",
+            },
+            json=equipment,
+            headers={"Prefer": "return=representation"},
+            operation="update_equipment",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def archive_equipment(
+        self,
+        workspace_id: str,
+        equipment_id: str,
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "PATCH",
+            "/rest/v1/equipment",
+            key=self.secret_key,
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "id": f"eq.{equipment_id}",
+            },
+            json={"status": "archived"},
+            headers={"Prefer": "return=representation"},
+            operation="archive_equipment",
+        )
+        records = response.json()
+        return records[0] if records else None
 
     async def _request(
         self,
