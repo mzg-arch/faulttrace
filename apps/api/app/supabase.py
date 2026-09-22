@@ -366,6 +366,97 @@ class SupabaseGateway:
         records = response.json()
         return records[0] if records else None
 
+    async def list_fault_reports(
+        self,
+        workspace_id: str,
+        *,
+        created_by: str | None,
+    ) -> list[dict[str, Any]]:
+        params = {
+            "select": (
+                "id,equipment_id,fault_code,symptom,planned_task,operating_context,status,"
+                "ack_authorized_qualified,ack_loto_isolation,ack_ppe_stored_energy,"
+                "ack_stop_escalate,activated_at,created_by,created_at,updated_at"
+            ),
+            "workspace_id": f"eq.{workspace_id}",
+            "order": "created_at.desc",
+        }
+        if created_by:
+            params["created_by"] = f"eq.{created_by}"
+        response = await self._request(
+            "GET",
+            "/rest/v1/fault_reports",
+            key=self.secret_key,
+            params=params,
+            operation="list_fault_reports",
+        )
+        return response.json()
+
+    async def create_fault_report(self, report: dict[str, Any]) -> dict[str, Any]:
+        response = await self._request(
+            "POST",
+            "/rest/v1/fault_reports",
+            key=self.secret_key,
+            json=report,
+            headers={"Prefer": "return=representation"},
+            operation="create_fault_report",
+        )
+        records = response.json()
+        return records[0] if records else {}
+
+    async def get_fault_report(
+        self,
+        workspace_id: str,
+        report_id: str,
+        *,
+        created_by: str | None,
+    ) -> dict[str, Any] | None:
+        params = {
+            "select": (
+                "id,equipment_id,fault_code,symptom,planned_task,operating_context,status,"
+                "ack_authorized_qualified,ack_loto_isolation,ack_ppe_stored_energy,"
+                "ack_stop_escalate,activated_at,created_by,created_at,updated_at"
+            ),
+            "workspace_id": f"eq.{workspace_id}",
+            "id": f"eq.{report_id}",
+            "limit": "1",
+        }
+        if created_by:
+            params["created_by"] = f"eq.{created_by}"
+        response = await self._request(
+            "GET",
+            "/rest/v1/fault_reports",
+            key=self.secret_key,
+            params=params,
+            operation="get_fault_report",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def activate_fault_report(
+        self,
+        workspace_id: str,
+        report_id: str,
+        created_by: str,
+        activation: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "PATCH",
+            "/rest/v1/fault_reports",
+            key=self.secret_key,
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "id": f"eq.{report_id}",
+                "created_by": f"eq.{created_by}",
+                "status": "eq.draft",
+            },
+            json=activation,
+            headers={"Prefer": "return=representation"},
+            operation="activate_fault_report",
+        )
+        records = response.json()
+        return records[0] if records else None
+
     async def list_documents(
         self,
         workspace_id: str,

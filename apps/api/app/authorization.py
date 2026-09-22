@@ -76,5 +76,19 @@ async def authorized_workspace_admin(
     return gateway, user
 
 
+async def authorized_workspace_technician(
+    workspace_id: UUID,
+    token: str,
+    settings: Settings,
+) -> tuple[SupabaseGateway, dict]:
+    gateway, user, role = await authorized_workspace_member(workspace_id, token, settings)
+    if role != "technician":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Workspace technician access is required.",
+        )
+    return gateway, user
+
+
 TokenDependency = Annotated[str, Depends(bearer_token)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]

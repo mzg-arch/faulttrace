@@ -5,6 +5,7 @@ import { BrandMark } from "@/components/brand-mark";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DocumentManagement } from "./document-management";
 import { EquipmentManagement } from "./equipment-management";
+import { FaultReportsOverview } from "./fault-reports-overview";
 import { SignOutButton } from "./sign-out-button";
 import { TeamAccess } from "./team-access";
 import { TechnicianDocuments } from "./technician-documents";
@@ -29,6 +30,12 @@ const adminAreas = [
     description: "Curate approved manuals, diagrams, bulletins, and fault-code sheets.",
     status: "Available",
   },
+  {
+    number: "04",
+    title: "Active fault reports",
+    description: "Review technician intakes and active cases in this workspace.",
+    status: "Available",
+  },
 ];
 
 const technicianAreas = [
@@ -46,9 +53,9 @@ const technicianAreas = [
   },
   {
     number: "03",
-    title: "Active troubleshooting",
-    description: "Work through supported checks one step at a time.",
-    status: "Coming soon",
+    title: "Fault reports",
+    description: "Record fault intake, complete the Safety Gate, and view active cases.",
+    status: "Available",
   },
   {
     number: "04",
@@ -195,7 +202,7 @@ export default async function DashboardPage() {
 
       <section
         aria-label={isAdmin ? "Administration areas" : "Technician areas"}
-        className="grid gap-4 md:grid-cols-3"
+        className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
       >
         {areas.map((area) => (
           <article key={area.number} className="rounded-2xl border border-white/10 bg-[#101e2d]/85 p-6">
@@ -212,12 +219,14 @@ export default async function DashboardPage() {
       {isAdmin ? (
         <>
           <EquipmentManagement workspaceId={workspaceResult.data.id} />
+          <FaultReportsOverview workspaceId={workspaceResult.data.id} role="admin" />
           <DocumentManagement workspaceId={workspaceResult.data.id} />
           <TeamAccess workspaceId={workspaceResult.data.id} />
         </>
       ) : (
         <>
           <TechnicianEquipment workspaceId={workspaceResult.data.id} />
+          <FaultReportsOverview workspaceId={workspaceResult.data.id} role="technician" />
           <TechnicianDocuments workspaceId={workspaceResult.data.id} />
         </>
       )}

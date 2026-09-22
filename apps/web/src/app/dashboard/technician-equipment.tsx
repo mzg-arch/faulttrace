@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { API_ORIGIN, apiErrorMessage, getAccessToken } from "@/lib/faulttrace-api";
@@ -113,11 +114,13 @@ export function TechnicianEquipment({ workspaceId }: { workspaceId: string }) {
       <div className="mt-7 flex flex-col gap-3 rounded-2xl border border-white/10 bg-[#091522] p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-medium text-slate-100">{selected ? selected.name : "Select equipment to start a fault report"}</p>
-          <p className="mt-1 text-sm text-slate-500">The fault report workflow will be added in the next milestone.</p>
+          <p className="mt-1 text-sm text-slate-500">Create a Draft intake, then complete the mandatory Safety Gate before work begins.</p>
         </div>
-        <button type="button" disabled className="shrink-0 rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-[#07111c] opacity-45">
-          Start fault report
-        </button>
+        {selected ? (
+          <Link href={`/dashboard/fault-reports/new?equipment=${encodeURIComponent(selected.id)}`} className="shrink-0 rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-[#07111c] hover:bg-cyan-200">Start fault report</Link>
+        ) : (
+          <button type="button" disabled className="shrink-0 rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-[#07111c] opacity-45">Start fault report</button>
+        )}
       </div>
     </section>
   );

@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import documents, equipment, health, team
+from app.routers import documents, equipment, fault_reports, health, team
 from app.settings import get_settings
 
 
@@ -33,3 +33,4 @@ app.include_router(health.router)
 app.include_router(team.router)
 app.include_router(equipment.router)
 app.include_router(documents.router)
+app.include_router(fault_reports.router)
