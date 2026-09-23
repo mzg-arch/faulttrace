@@ -1,4 +1,4 @@
-export type FaultReportStatus = "draft" | "active";
+export type FaultReportStatus = "draft" | "active" | "resolved";
 
 export type FaultReport = {
   id: string;
@@ -15,10 +15,30 @@ export type FaultReport = {
   ack_ppe_stored_energy: boolean;
   ack_stop_escalate: boolean;
   activated_at: string | null;
+  resolved_at: string | null;
+  resolved_by_user_id: string | null;
+  resolution_summary: string | null;
   created_by: string;
   technician_name: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type WorkLogEntryType =
+  | "observation"
+  | "action_taken"
+  | "measurement"
+  | "escalation"
+  | "resolution";
+
+export type WorkLogEntry = {
+  id: string;
+  fault_report_id: string;
+  author_user_id: string;
+  author_name: string | null;
+  entry_type: WorkLogEntryType;
+  note: string;
+  created_at: string;
 };
 
 export type ActiveEquipment = {

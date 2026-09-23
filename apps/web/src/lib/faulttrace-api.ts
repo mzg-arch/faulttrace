@@ -1,6 +1,6 @@
 import type { AuthError, Session } from "@supabase/supabase-js";
 
-import { fetchWithSingleAuthRetry } from "@/lib/authenticated-fetch";
+import { browserFetch, fetchWithSingleAuthRetry } from "@/lib/authenticated-fetch";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 export const API_ORIGIN = "http://localhost:8000";
@@ -46,7 +46,7 @@ export async function authenticatedFetch(input: RequestInfo | URL, init?: Reques
   return fetchWithSingleAuthRetry(input, init, {
     getAccessToken,
     refreshAccessToken: refreshAccessTokenOnce,
-    send: fetch,
+    send: browserFetch,
   });
 }
 

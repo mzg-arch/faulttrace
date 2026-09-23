@@ -11,11 +11,16 @@ from pydantic import SecretStr, ValidationError
 from app.authorization import authorized_workspace_technician
 from app.routers.fault_reports import (
     FaultReportInput,
+    ResolutionInput,
     SafetyAcknowledgements,
+    WorkLogInput,
     activate_fault_report,
     create_fault_report,
+    create_fault_report_work_log,
     get_fault_report,
     list_fault_reports,
+    list_fault_report_work_logs,
+    resolve_fault_report,
 )
 from app.settings import Settings
 
@@ -51,6 +56,9 @@ def report_record(**overrides: object) -> dict[str, object]:
         "ack_ppe_stored_energy": False,
         "ack_stop_escalate": False,
         "activated_at": None,
+        "resolved_at": None,
+        "resolved_by_user_id": None,
+        "resolution_summary": None,
         "created_by": TECHNICIAN_ID,
         "created_at": "2026-09-21T12:00:00Z",
         "updated_at": "2026-09-21T12:00:00Z",
@@ -67,6 +75,10 @@ class FakeFaultReportGateway:
         self.created_payload: dict[str, object] | None = None
         self.activation_scope: tuple[str, str, str] | None = None
         self.activation_payload: dict[str, object] | None = None
+        self.work_log_scope: tuple[str, str] | None = None
+        self.created_work_log: tuple[str, str, str, str, str] | None = None
+        self.resolution_scope: tuple[str, str, str, str] | None = None
+        self.work_logs: list[dict[str, object]] = []
         self.current_record: dict[str, object] | None = report_record()
         self.equipment_record: dict[str, object] | None = {
             "id": str(EQUIPMENT_ID),
@@ -129,6 +141,75 @@ class FakeFaultReportGateway:
         self.activation_payload = activation
         return report_record(**activation)
 
+    async def list_fault_report_work_logs(
+        self,
+        workspace_id: str,
+        report_id: str,
+    ) -> list[dict[str, object]]:
+        self.work_log_scope = (workspace_id, report_id)
+        return self.work_logs
+
+    async def create_fault_report_work_log(
+        self,
+        workspace_id: str,
+        report_id: str,
+        author_user_id: str,
+        entry_type: str,
+        note: str,
+    ) -> dict[str, object]:
+        self.created_work_log = (
+            workspace_id,
+            report_id,
+            author_user_id,
+            entry_type,
+            note,
+        )
+        record: dict[str, object] = {
+            "id": "55555555-5555-5555-5555-555555555555",
+            "fault_report_id": report_id,
+            "author_user_id": author_user_id,
+            "entry_type": entry_type,
+            "note": note,
+            "created_at": "2026-09-22T14:00:00Z",
+        }
+        self.work_logs.append(record)
+        return record
+
+    async def resolve_fault_report(
+        self,
+        workspace_id: str,
+        report_id: str,
+        user_id: str,
+        resolution_summary: str,
+    ) -> dict[str, object]:
+        self.resolution_scope = (
+            workspace_id,
+            report_id,
+            user_id,
+            resolution_summary,
+        )
+        self.work_logs.append(
+            {
+                "id": "66666666-6666-6666-6666-666666666666",
+                "fault_report_id": report_id,
+                "author_user_id": user_id,
+                "entry_type": "resolution",
+                "note": resolution_summary,
+                "created_at": "2026-09-22T15:00:00Z",
+            }
+        )
+        return report_record(
+            status="resolved",
+            activated_at="2026-09-22T13:00:00Z",
+            ack_authorized_qualified=True,
+            ack_loto_isolation=True,
+            ack_ppe_stored_energy=True,
+            ack_stop_escalate=True,
+            resolved_at="2026-09-22T15:00:00Z",
+            resolved_by_user_id=user_id,
+            resolution_summary=resolution_summary,
+        )
+
 
 class FakeAuthorizationGateway:
     @property
@@ -163,6 +244,12 @@ class FaultReportValidationTests(unittest.TestCase):
         self.assertEqual(payload.symptom, "Drive will not start")
         self.assertIsNone(payload.fault_code)
         self.assertIsNone(payload.planned_task)
+
+    def test_blank_work_log_and_resolution_notes_are_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            WorkLogInput(entry_type="observation", note="   ")
+        with self.assertRaises(ValidationError):
+            ResolutionInput(resolution_summary="\n\t")
 
 
 class FaultReportAuthorizationTests(unittest.TestCase):
@@ -397,6 +484,226 @@ class FaultReportEndpointTests(unittest.TestCase):
                 )
 
         self.assertEqual(context.exception.status_code, 403)
+
+
+class WorkLogEndpointTests(unittest.TestCase):
+    def test_technician_work_log_read_is_scoped_to_own_workspace_report(self) -> None:
+        gateway = FakeFaultReportGateway()
+        gateway.current_record = report_record(status="active")
+        gateway.work_logs = [
+            {
+                "id": "55555555-5555-5555-5555-555555555555",
+                "fault_report_id": str(REPORT_ID),
+                "author_user_id": TECHNICIAN_ID,
+                "entry_type": "observation",
+                "note": "Contactor remains open after the start request.",
+                "created_at": "2026-09-22T14:00:00Z",
+            }
+        ]
+        authorization = AsyncMock(
+            return_value=(gateway, {"id": TECHNICIAN_ID}, "technician")
+        )
+
+        with patch("app.routers.fault_reports.authorized_workspace_member", authorization):
+            entries = asyncio.run(
+                list_fault_report_work_logs(
+                    WORKSPACE_ID,
+                    REPORT_ID,
+                    "token",
+                    test_settings(),
+                )
+            )
+
+        self.assertEqual(
+            gateway.get_scope,
+            (str(WORKSPACE_ID), str(REPORT_ID), TECHNICIAN_ID),
+        )
+        self.assertEqual(
+            gateway.work_log_scope,
+            (str(WORKSPACE_ID), str(REPORT_ID)),
+        )
+        self.assertEqual(entries[0].author_name, "Demo Technician")
+
+    def test_admin_can_read_workspace_work_log_without_creator_filter(self) -> None:
+        gateway = FakeFaultReportGateway()
+        gateway.current_record = report_record(status="active")
+        authorization = AsyncMock(
+            return_value=(gateway, {"id": "admin-id"}, "admin")
+        )
+
+        with patch("app.routers.fault_reports.authorized_workspace_member", authorization):
+            asyncio.run(
+                list_fault_report_work_logs(
+                    WORKSPACE_ID,
+                    REPORT_ID,
+                    "token",
+                    test_settings(),
+                )
+            )
+
+        self.assertEqual(
+            gateway.get_scope,
+            (str(WORKSPACE_ID), str(REPORT_ID), None),
+        )
+
+    def test_technician_adds_entry_to_own_active_report(self) -> None:
+        gateway = FakeFaultReportGateway()
+        gateway.current_record = report_record(status="active")
+        authorization = AsyncMock(return_value=(gateway, {"id": TECHNICIAN_ID}))
+        payload = WorkLogInput(
+            entry_type="measurement",
+            note="Measured 24.1 VDC at the control input.",
+        )
+
+        with patch(
+            "app.routers.fault_reports.authorized_workspace_technician",
+            authorization,
+        ):
+            result = asyncio.run(
+                create_fault_report_work_log(
+                    WORKSPACE_ID,
+                    REPORT_ID,
+                    payload,
+                    "token",
+                    test_settings(),
+                )
+            )
+
+        self.assertEqual(
+            gateway.created_work_log,
+            (
+                str(WORKSPACE_ID),
+                str(REPORT_ID),
+                TECHNICIAN_ID,
+                "measurement",
+                "Measured 24.1 VDC at the control input.",
+            ),
+        )
+        self.assertEqual(result.entry_type, "measurement")
+
+    def test_resolved_report_rejects_new_work_log_entry(self) -> None:
+        gateway = FakeFaultReportGateway()
+        gateway.current_record = report_record(
+            status="resolved",
+            resolved_at="2026-09-22T15:00:00Z",
+            resolved_by_user_id=TECHNICIAN_ID,
+            resolution_summary="Reset the approved interlock after inspection.",
+        )
+        authorization = AsyncMock(return_value=(gateway, {"id": TECHNICIAN_ID}))
+
+        with patch(
+            "app.routers.fault_reports.authorized_workspace_technician",
+            authorization,
+        ):
+            with self.assertRaises(HTTPException) as context:
+                asyncio.run(
+                    create_fault_report_work_log(
+                        WORKSPACE_ID,
+                        REPORT_ID,
+                        WorkLogInput(entry_type="observation", note="Late note."),
+                        "token",
+                        test_settings(),
+                    )
+                )
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertIsNone(gateway.created_work_log)
+
+    def test_owner_resolves_active_report_and_records_resolution_entry(self) -> None:
+        gateway = FakeFaultReportGateway()
+        gateway.current_record = report_record(status="active")
+        authorization = AsyncMock(return_value=(gateway, {"id": TECHNICIAN_ID}))
+        payload = ResolutionInput(
+            resolution_summary="Replaced the damaged control fuse per the approved procedure."
+        )
+
+        with patch(
+            "app.routers.fault_reports.authorized_workspace_technician",
+            authorization,
+        ):
+            result = asyncio.run(
+                resolve_fault_report(
+                    WORKSPACE_ID,
+                    REPORT_ID,
+                    payload,
+                    "token",
+                    test_settings(),
+                )
+            )
+
+        self.assertEqual(result.status, "resolved")
+        self.assertEqual(result.resolved_by_user_id, UUID(TECHNICIAN_ID))
+        self.assertEqual(gateway.work_logs[-1]["entry_type"], "resolution")
+        self.assertEqual(
+            gateway.resolution_scope,
+            (
+                str(WORKSPACE_ID),
+                str(REPORT_ID),
+                TECHNICIAN_ID,
+                payload.resolution_summary,
+            ),
+        )
+
+    def test_already_resolved_report_cannot_be_resolved_again(self) -> None:
+        gateway = FakeFaultReportGateway()
+        gateway.current_record = report_record(
+            status="resolved",
+            resolved_at="2026-09-22T15:00:00Z",
+            resolved_by_user_id=TECHNICIAN_ID,
+            resolution_summary="Issue corrected.",
+        )
+        authorization = AsyncMock(return_value=(gateway, {"id": TECHNICIAN_ID}))
+
+        with patch(
+            "app.routers.fault_reports.authorized_workspace_technician",
+            authorization,
+        ):
+            with self.assertRaises(HTTPException) as context:
+                asyncio.run(
+                    resolve_fault_report(
+                        WORKSPACE_ID,
+                        REPORT_ID,
+                        ResolutionInput(resolution_summary="Resolve again."),
+                        "token",
+                        test_settings(),
+                    )
+                )
+
+        self.assertEqual(context.exception.status_code, 409)
+        self.assertIsNone(gateway.resolution_scope)
+
+    def test_admin_cannot_add_work_log_or_resolve_report(self) -> None:
+        authorization = AsyncMock(
+            side_effect=HTTPException(status_code=403, detail="Technician access required.")
+        )
+
+        with patch(
+            "app.routers.fault_reports.authorized_workspace_technician",
+            authorization,
+        ):
+            with self.assertRaises(HTTPException) as create_context:
+                asyncio.run(
+                    create_fault_report_work_log(
+                        WORKSPACE_ID,
+                        REPORT_ID,
+                        WorkLogInput(entry_type="escalation", note="Escalated."),
+                        "token",
+                        test_settings(),
+                    )
+                )
+            with self.assertRaises(HTTPException) as resolve_context:
+                asyncio.run(
+                    resolve_fault_report(
+                        WORKSPACE_ID,
+                        REPORT_ID,
+                        ResolutionInput(resolution_summary="Closed."),
+                        "token",
+                        test_settings(),
+                    )
+                )
+
+        self.assertEqual(create_context.exception.status_code, 403)
+        self.assertEqual(resolve_context.exception.status_code, 403)
 
 
 if __name__ == "__main__":

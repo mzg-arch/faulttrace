@@ -52,12 +52,12 @@ Every route verifies the Supabase access token and workspace membership. The API
 7. Confirm the new report is **Draft** and the Safety Gate is shown.
 8. Verify **Acknowledge and begin case** remains disabled until all four acknowledgements are checked.
 9. Complete all acknowledgements and activate the case.
-10. Confirm the Active case shows the intake, completed acknowledgement record, and placeholder sections for Approved evidence, Guided checks, and Work log.
+10. Confirm the Active case shows the intake and completed acknowledgement record. Continue with the evidence, guidance, and work-log feature guides for later milestones.
 11. Return to the dashboard and confirm the technician can resume the case from **Fault reports**.
 12. Sign out and sign in as the workspace administrator.
 13. In **Active fault reports**, open the report and confirm the view is read-only.
 14. If another workspace exists, confirm neither its technician nor its administrator can retrieve this report through their workspace route.
 
-## Current boundary
+## Related milestones
 
-This milestone records intake and the pre-task gate. It does not generate safety advice, select procedures, retrieve evidence, produce citations, accept photos, build repair branches, record work-log entries, or resolve and hand off cases.
+Fault intake and the Safety Gate are followed by [grounded evidence retrieval](evidence-retrieval.md), [evidence-grounded guidance](guidance-plan.md), and [Work Log and Fault Resolution](work-log-resolution.md). Photo intake, OCR, repair branching, and audited case reopening are not implemented.

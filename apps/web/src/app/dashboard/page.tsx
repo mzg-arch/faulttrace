@@ -33,8 +33,8 @@ const adminAreas = [
   },
   {
     number: "04",
-    title: "Active fault reports",
-    description: "Review technician intakes and active cases in this workspace.",
+    title: "Fault reports",
+    description: "Review technician intakes, work logs, active cases, and resolutions.",
     status: "Available",
   },
 ];
@@ -55,7 +55,7 @@ const technicianAreas = [
   {
     number: "03",
     title: "Fault reports",
-    description: "Record fault intake, complete the Safety Gate, and view active cases.",
+    description: "Complete the Safety Gate, record work, and resolve owned fault reports.",
     status: "Available",
   },
   {

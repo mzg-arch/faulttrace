@@ -45,8 +45,8 @@ export function FaultReportsOverview({
       <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">{isAdmin ? "Read-only workspace visibility" : "Your current work"}</p>
-          <h2 id={`${role}-fault-reports-title`} className="mt-2 text-2xl font-semibold text-white">{isAdmin ? "Active fault reports" : "Fault reports"}</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">{isAdmin ? "Review Draft and Active technician reports in this workspace. Case controls remain with the assigned technician." : "Resume a Draft Safety Gate or return to one of your Active troubleshooting cases."}</p>
+          <h2 id={`${role}-fault-reports-title`} className="mt-2 text-2xl font-semibold text-white">Fault reports</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">{isAdmin ? "Review Draft, Active, and Resolved technician reports in this workspace. Case controls remain with the assigned technician." : "Resume a Draft Safety Gate, return to an Active case, or review a Resolved report."}</p>
         </div>
         {!isAdmin && <Link href="/dashboard/fault-reports/new" className="shrink-0 rounded-xl bg-cyan-300 px-4 py-3 text-center text-sm font-bold text-[#07111c] hover:bg-cyan-200">Start fault report</Link>}
       </div>
@@ -56,7 +56,7 @@ export function FaultReportsOverview({
         {loadError && <div role="alert" className="rounded-xl border border-amber-300/25 bg-amber-300/5 p-4 text-sm text-amber-100"><p>{loadError}</p><button type="button" onClick={() => void loadReports()} className="mt-3 font-semibold text-cyan-200 hover:text-cyan-100">Try again</button></div>}
         {!isLoading && !loadError && reports.length === 0 && (
           <div className="rounded-2xl border border-dashed border-white/15 bg-[#091522]/60 p-7 text-center">
-            <p className="font-medium text-slate-200">{isAdmin ? "No Draft or Active fault reports are available." : "You have not started a fault report."}</p>
+            <p className="font-medium text-slate-200">{isAdmin ? "No fault reports are available." : "You have not started a fault report."}</p>
             <p className="mt-2 text-sm leading-6 text-slate-500">{isAdmin ? "Technician reports from this workspace will appear here." : "Select active equipment or start a new report when a fault needs investigation."}</p>
           </div>
         )}
@@ -69,7 +69,7 @@ export function FaultReportsOverview({
                     <h3 className="font-semibold text-white">{report.equipment_name}</h3>
                     <p className="mt-1 font-mono text-xs text-cyan-200">{report.equipment_asset_tag ?? "Asset ID not assigned"}</p>
                   </div>
-                  <span className={report.status === "active" ? "rounded-full border border-emerald-300/20 bg-emerald-300/5 px-2.5 py-1 text-xs font-semibold text-emerald-200" : "rounded-full border border-amber-300/20 bg-amber-300/5 px-2.5 py-1 text-xs font-semibold text-amber-100"}>{report.status}</span>
+                  <span className={report.status === "active" ? "rounded-full border border-emerald-300/20 bg-emerald-300/5 px-2.5 py-1 text-xs font-semibold capitalize text-emerald-200" : report.status === "resolved" ? "rounded-full border border-violet-300/20 bg-violet-300/5 px-2.5 py-1 text-xs font-semibold capitalize text-violet-100" : "rounded-full border border-amber-300/20 bg-amber-300/5 px-2.5 py-1 text-xs font-semibold capitalize text-amber-100"}>{report.status}</span>
                 </div>
                 <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-300">{report.symptom}</p>
                 <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">

@@ -376,7 +376,8 @@ class SupabaseGateway:
             "select": (
                 "id,equipment_id,fault_code,symptom,planned_task,operating_context,status,"
                 "ack_authorized_qualified,ack_loto_isolation,ack_ppe_stored_energy,"
-                "ack_stop_escalate,activated_at,created_by,created_at,updated_at"
+                "ack_stop_escalate,activated_at,resolved_at,resolved_by_user_id,"
+                "resolution_summary,created_by,created_at,updated_at"
             ),
             "workspace_id": f"eq.{workspace_id}",
             "order": "created_at.desc",
@@ -415,7 +416,8 @@ class SupabaseGateway:
             "select": (
                 "id,equipment_id,fault_code,symptom,planned_task,operating_context,status,"
                 "ack_authorized_qualified,ack_loto_isolation,ack_ppe_stored_energy,"
-                "ack_stop_escalate,activated_at,created_by,created_at,updated_at"
+                "ack_stop_escalate,activated_at,resolved_at,resolved_by_user_id,"
+                "resolution_summary,created_by,created_at,updated_at"
             ),
             "workspace_id": f"eq.{workspace_id}",
             "id": f"eq.{report_id}",
@@ -429,6 +431,71 @@ class SupabaseGateway:
             key=self.secret_key,
             params=params,
             operation="get_fault_report",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def list_fault_report_work_logs(
+        self,
+        workspace_id: str,
+        report_id: str,
+    ) -> list[dict[str, Any]]:
+        response = await self._request(
+            "GET",
+            "/rest/v1/fault_report_work_logs",
+            key=self.secret_key,
+            params={
+                "select": "id,fault_report_id,author_user_id,entry_type,note,created_at",
+                "workspace_id": f"eq.{workspace_id}",
+                "fault_report_id": f"eq.{report_id}",
+                "order": "created_at.asc,id.asc",
+            },
+            operation="list_fault_report_work_logs",
+        )
+        return response.json()
+
+    async def create_fault_report_work_log(
+        self,
+        workspace_id: str,
+        report_id: str,
+        author_user_id: str,
+        entry_type: str,
+        note: str,
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "POST",
+            "/rest/v1/rpc/create_fault_report_work_log",
+            key=self.secret_key,
+            json={
+                "target_workspace_id": workspace_id,
+                "target_report_id": report_id,
+                "target_author_user_id": author_user_id,
+                "target_entry_type": entry_type,
+                "target_note": note,
+            },
+            operation="create_fault_report_work_log",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def resolve_fault_report(
+        self,
+        workspace_id: str,
+        report_id: str,
+        user_id: str,
+        resolution_summary: str,
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "POST",
+            "/rest/v1/rpc/resolve_fault_report_with_log",
+            key=self.secret_key,
+            json={
+                "target_workspace_id": workspace_id,
+                "target_report_id": report_id,
+                "target_user_id": user_id,
+                "target_resolution_summary": resolution_summary,
+            },
+            operation="resolve_fault_report",
         )
         records = response.json()
         return records[0] if records else None

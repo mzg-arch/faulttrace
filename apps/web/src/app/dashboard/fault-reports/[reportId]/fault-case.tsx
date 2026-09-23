@@ -10,6 +10,8 @@ import {
   type EvidenceRetrievalResponse,
   type FaultReport,
   type GuidancePlan,
+  type WorkLogEntry,
+  type WorkLogEntryType,
 } from "../../fault-report-types";
 import { DOCUMENT_TYPE_LABELS } from "../../document-types";
 
@@ -22,6 +24,21 @@ const EMPTY_ACKNOWLEDGEMENTS: SafetyState = {
   ack_ppe_stored_energy: false,
   ack_stop_escalate: false,
 };
+
+const WORK_LOG_TYPE_LABELS: Record<WorkLogEntryType, string> = {
+  observation: "Observation",
+  action_taken: "Action taken",
+  measurement: "Measurement",
+  escalation: "Escalation",
+  resolution: "Resolution",
+};
+
+const MANUAL_WORK_LOG_OPTIONS = [
+  "observation",
+  "action_taken",
+  "measurement",
+  "escalation",
+] as const;
 
 function ReportDetails({ report }: { report: FaultReport }) {
   const details = [
@@ -292,25 +309,231 @@ function GuidancePlanSection({
   );
 }
 
-function ActiveCase({
+function WorkLogSection({
   report,
   role,
   workspaceId,
+  onReportResolved,
 }: {
   report: FaultReport;
   role: "admin" | "technician";
   workspaceId: string;
+  onReportResolved: (report: FaultReport) => void;
 }) {
+  const [entries, setEntries] = useState<WorkLogEntry[]>([]);
+  const [entryType, setEntryType] = useState<(typeof MANUAL_WORK_LOG_OPTIONS)[number]>("observation");
+  const [note, setNote] = useState("");
+  const [resolutionSummary, setResolutionSummary] = useState("");
+  const [resolutionConfirmed, setResolutionConfirmed] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAdding, setIsAdding] = useState(false);
+  const [isResolving, setIsResolving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const loadEntries = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await authenticatedFetch(
+        `${API_ORIGIN}/workspaces/${workspaceId}/fault-reports/${report.id}/work-logs`,
+      );
+      if (!response.ok) {
+        throw new Error(await apiErrorMessage(response, "The work log could not be loaded."));
+      }
+      setEntries((await response.json()) as WorkLogEntry[]);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "The work log could not be loaded.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [report.id, workspaceId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadEntries(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadEntries]);
+
+  async function addEntry() {
+    const normalizedNote = note.trim();
+    if (!normalizedNote || isAdding || report.status !== "active" || role !== "technician") return;
+    setIsAdding(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await authenticatedFetch(
+        `${API_ORIGIN}/workspaces/${workspaceId}/fault-reports/${report.id}/work-logs`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ entry_type: entryType, note: normalizedNote }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(await apiErrorMessage(response, "The work-log entry could not be recorded."));
+      }
+      const createdEntry = (await response.json()) as WorkLogEntry;
+      setEntries((current) => [...current, createdEntry]);
+      setNote("");
+      setSuccess("Work-log entry recorded.");
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : "The work-log entry could not be recorded.");
+    } finally {
+      setIsAdding(false);
+    }
+  }
+
+  async function resolveReport() {
+    const normalizedSummary = resolutionSummary.trim();
+    if (!normalizedSummary || !resolutionConfirmed || isResolving || report.status !== "active" || role !== "technician") return;
+    setIsResolving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await authenticatedFetch(
+        `${API_ORIGIN}/workspaces/${workspaceId}/fault-reports/${report.id}/resolve`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ resolution_summary: normalizedSummary }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(await apiErrorMessage(response, "The fault report could not be resolved."));
+      }
+      const resolvedReport = (await response.json()) as FaultReport;
+      onReportResolved(resolvedReport);
+      setResolutionSummary("");
+      setResolutionConfirmed(false);
+      setSuccess("Fault report resolved and the outcome was added to the work log.");
+      await loadEntries();
+    } catch (resolveError) {
+      setError(resolveError instanceof Error ? resolveError.message : "The fault report could not be resolved.");
+    } finally {
+      setIsResolving(false);
+    }
+  }
+
+  const isResolved = report.status === "resolved";
+
+  return (
+    <section className="rounded-3xl border border-white/10 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="work-log-title">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-6">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Append-only case record</p>
+          <h2 id="work-log-title" className="mt-2 text-2xl font-semibold text-white">Work Log</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Record observations, actions, measurements, and escalations in chronological order. Entries remain part of the case audit history.</p>
+        </div>
+        <span className={isResolved ? "rounded-full border border-violet-300/25 bg-violet-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-violet-100" : "rounded-full border border-emerald-300/25 bg-emerald-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-emerald-200"}>{isResolved ? "Resolved" : "Active"}</span>
+      </div>
+
+      {role === "admin" && <p className="mt-5 rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-4 py-3 text-sm text-cyan-100">Read-only administrator view. Work-log entries and resolution controls belong to the report technician.</p>}
+      {isResolved && report.resolution_summary && (
+        <div className="mt-5 rounded-2xl border border-violet-300/20 bg-violet-300/5 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="font-semibold text-violet-100">Recorded resolution</h3>
+            <span className="text-xs text-violet-100/60">{report.resolved_at ? formatReportDate(report.resolved_at) : "Resolution time recorded"}</span>
+          </div>
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-200">{report.resolution_summary}</p>
+        </div>
+      )}
+
+      {isLoading && <p role="status" className="mt-6 rounded-xl border border-white/10 p-4 text-sm text-slate-400">Loading work-log entries...</p>}
+      {error && <div role="alert" className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/5 p-4 text-sm text-amber-100"><p>{error}</p><button type="button" onClick={() => void loadEntries()} className="mt-3 font-semibold text-cyan-200 hover:text-cyan-100">Reload work log</button></div>}
+      {success && <p role="status" className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/5 px-4 py-3 text-sm text-emerald-100">{success}</p>}
+
+      {!isLoading && entries.length === 0 && (
+        <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-[#091522]/60 p-6 text-center">
+          <p className="font-medium text-slate-200">No work-log entries yet.</p>
+          <p className="mt-2 text-sm leading-6 text-slate-500">{role === "technician" && !isResolved ? "Record the first supported observation, action, measurement, or escalation." : "Technician activity will appear here as it is recorded."}</p>
+        </div>
+      )}
+
+      {!isLoading && entries.length > 0 && (
+        <ol className="relative mt-7 space-y-5 border-l border-white/10 pl-6">
+          {entries.map((entry) => (
+            <li key={entry.id} className="relative rounded-2xl border border-white/10 bg-[#091522] p-5">
+              <span aria-hidden="true" className={`absolute -left-[31px] top-6 size-3 rounded-full border-2 border-[#101e2d] ${entry.entry_type === "resolution" ? "bg-violet-300" : entry.entry_type === "escalation" ? "bg-amber-300" : "bg-cyan-300"}`} />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-semibold text-slate-200">{WORK_LOG_TYPE_LABELS[entry.entry_type]}</span>
+                <span className="text-xs text-slate-500">{formatReportDate(entry.created_at)}</span>
+              </div>
+              <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">{entry.note}</p>
+              <p className="mt-3 text-xs text-slate-500">Recorded by {entry.author_name || "Technician"}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {role === "technician" && isResolved && (
+        <div className="mt-7 rounded-2xl border border-violet-300/15 bg-violet-300/5 p-5">
+          <h3 className="font-semibold text-violet-100">Fault report closed</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-400">Resolution is recorded. Further work-log entries and another resolution are disabled to preserve this audit history.</p>
+          <button type="button" disabled className="mt-4 rounded-xl border border-violet-300/20 px-4 py-3 text-sm font-bold text-violet-100/50 disabled:cursor-not-allowed">Report resolved</button>
+        </div>
+      )}
+
+      {role === "technician" && !isResolved && (
+        <div className="mt-8 grid gap-6 border-t border-white/10 pt-7 xl:grid-cols-2">
+          <div className="rounded-2xl border border-cyan-300/15 bg-[#091522] p-5">
+            <h3 className="text-lg font-semibold text-white">Add log entry</h3>
+            <label className="mt-5 block text-sm font-medium text-slate-200">
+              Entry type
+              <select value={entryType} onChange={(event) => setEntryType(event.target.value as (typeof MANUAL_WORK_LOG_OPTIONS)[number])} disabled={isAdding || isResolving} className="mt-2 w-full rounded-xl border border-white/10 bg-[#07111c] px-4 py-3 text-sm text-white outline-none focus:border-cyan-300/60">
+                {MANUAL_WORK_LOG_OPTIONS.map((option) => <option key={option} value={option}>{WORK_LOG_TYPE_LABELS[option]}</option>)}
+              </select>
+            </label>
+            <label className="mt-4 block text-sm font-medium text-slate-200">
+              Note <span className="text-amber-200">*</span>
+              <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={4000} rows={5} disabled={isAdding || isResolving} placeholder="Record what was observed, measured, completed, or escalated." className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-[#07111c] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/60" />
+            </label>
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <span className="text-xs text-slate-600">{note.length}/4000</span>
+              <button type="button" onClick={() => void addEntry()} disabled={!note.trim() || isAdding || isResolving} className="rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-[#07111c] hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">{isAdding ? "Recording..." : "Add log entry"}</button>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-violet-300/20 bg-violet-300/5 p-5">
+            <h3 className="text-lg font-semibold text-white">Resolve fault report</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-400">Resolution records the final outcome, creates an immutable resolution entry, and closes this report to further activity.</p>
+            <label className="mt-5 block text-sm font-medium text-slate-200">
+              Resolution summary <span className="text-amber-200">*</span>
+              <textarea value={resolutionSummary} onChange={(event) => setResolutionSummary(event.target.value)} maxLength={4000} rows={5} disabled={isResolving || isAdding} placeholder="Describe the verified outcome and any relevant follow-up." className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-[#07111c] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-violet-300/60" />
+            </label>
+            <label className="mt-4 flex gap-3 rounded-xl border border-violet-300/15 bg-[#07111c]/60 p-4 text-sm leading-6 text-slate-300">
+              <input type="checkbox" checked={resolutionConfirmed} onChange={(event) => setResolutionConfirmed(event.target.checked)} disabled={isResolving || isAdding} className="mt-1 size-4 shrink-0 accent-violet-300" />
+              <span>I confirm this summary records the outcome and resolving will close the report.</span>
+            </label>
+            <button type="button" onClick={() => void resolveReport()} disabled={!resolutionSummary.trim() || !resolutionConfirmed || isResolving || isAdding} className="mt-4 w-full rounded-xl bg-violet-300 px-4 py-3 text-sm font-bold text-[#07111c] hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-40">{isResolving ? "Resolving report..." : "Resolve and close report"}</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function CaseWorkspace({
+  report,
+  role,
+  workspaceId,
+  onReportResolved,
+}: {
+  report: FaultReport;
+  role: "admin" | "technician";
+  workspaceId: string;
+  onReportResolved: (report: FaultReport) => void;
+}) {
+  const isResolved = report.status === "resolved";
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-emerald-300/20 bg-[#101e2d]/95 p-6 sm:p-8">
+      <section className={`rounded-3xl bg-[#101e2d]/95 p-6 sm:p-8 ${isResolved ? "border border-violet-300/20" : "border border-emerald-300/20"}`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-300">Active troubleshooting case</p>
+            <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${isResolved ? "text-violet-200" : "text-emerald-300"}`}>{isResolved ? "Resolved fault report" : "Active troubleshooting case"}</p>
             <h1 className="mt-3 text-3xl font-semibold text-white">{report.equipment_name}</h1>
             <p className="mt-2 text-sm text-slate-400">Created {formatReportDate(report.created_at)}{report.technician_name ? ` by ${report.technician_name}` : ""}</p>
           </div>
-          <span className="rounded-full border border-emerald-300/25 bg-emerald-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-emerald-200">Active</span>
+          <span className={isResolved ? "rounded-full border border-violet-300/25 bg-violet-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-violet-100" : "rounded-full border border-emerald-300/25 bg-emerald-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-emerald-200"}>{isResolved ? "Resolved" : "Active"}</span>
         </div>
         {role === "admin" && <p className="mt-5 rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-4 py-3 text-sm text-cyan-100">Read-only administrator view for this workspace report.</p>}
         <div className="mt-7"><ReportDetails report={report} /></div>
@@ -335,15 +558,11 @@ function ActiveCase({
         <p className="mt-5 text-xs leading-6 text-slate-500">These acknowledgements record the pre-task gate. They do not replace current site procedures, permits, formal LOTO or isolation requirements, or professional judgment. Historical cases and automated output never override current approved procedures.</p>
       </section>
 
-      <ApprovedEvidence workspaceId={workspaceId} reportId={report.id} />
+      {!isResolved && <ApprovedEvidence workspaceId={workspaceId} reportId={report.id} />}
 
-      <GuidancePlanSection workspaceId={workspaceId} reportId={report.id} role={role} />
+      {!isResolved && <GuidancePlanSection workspaceId={workspaceId} reportId={report.id} role={role} />}
 
-      <section className="rounded-2xl border border-white/10 bg-[#101e2d]/85 p-6" aria-label="Work log placeholder">
-        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Placeholder</span>
-        <h2 className="mt-4 text-lg font-semibold text-white">Work log</h2>
-        <p className="mt-3 text-sm leading-7 text-slate-400">Findings, measurements, actions, and handoff notes will be recorded here later.</p>
-      </section>
+      <WorkLogSection report={report} role={role} workspaceId={workspaceId} onReportResolved={onReportResolved} />
     </div>
   );
 }
@@ -431,8 +650,8 @@ export function FaultCase({
   }
 
   if (!report) return null;
-  if (report.status === "active") {
-    return <ActiveCase report={report} role={role} workspaceId={workspaceId} />;
+  if (report.status === "active" || report.status === "resolved") {
+    return <CaseWorkspace report={report} role={role} workspaceId={workspaceId} onReportResolved={setReport} />;
   }
 
   if (role === "admin") {

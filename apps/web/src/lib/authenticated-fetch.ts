@@ -10,6 +10,10 @@ function requestWithToken(init: RequestInit | undefined, token: string): Request
   return { ...init, headers };
 }
 
+export function browserFetch(input: RequestInfo | URL, init?: RequestInit) {
+  return window.fetch(input, init);
+}
+
 export async function fetchWithSingleAuthRetry(
   input: RequestInfo | URL,
   init: RequestInit | undefined,

@@ -1,7 +1,50 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { fetchWithSingleAuthRetry } from "../src/lib/authenticated-fetch.ts";
+import { browserFetch, fetchWithSingleAuthRetry } from "../src/lib/authenticated-fetch.ts";
+
+test("dashboard requests invoke fetch with the Window receiver", async () => {
+  const originalWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const requestedUrls = [];
+  const fakeWindow = {
+    fetch: async function (input) {
+      assert.equal(this, fakeWindow);
+      requestedUrls.push(String(input));
+      return new Response(null, { status: 200 });
+    },
+  };
+
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: fakeWindow,
+  });
+
+  try {
+    const dependencies = {
+      getAccessToken: async () => "valid-token",
+      refreshAccessToken: async () => null,
+      send: browserFetch,
+    };
+    const dashboardUrls = [
+      "http://localhost:8000/workspaces/demo/equipment",
+      "http://localhost:8000/workspaces/demo/documents",
+      "http://localhost:8000/workspaces/demo/fault-reports",
+    ];
+
+    const responses = await Promise.all(
+      dashboardUrls.map((url) => fetchWithSingleAuthRetry(url, undefined, dependencies)),
+    );
+
+    assert.deepEqual(responses.map((response) => response.status), [200, 200, 200]);
+    assert.deepEqual(requestedUrls, dashboardUrls);
+  } finally {
+    if (originalWindowDescriptor) {
+      Object.defineProperty(globalThis, "window", originalWindowDescriptor);
+    } else {
+      delete globalThis.window;
+    }
+  }
+});
 
 test("a 401 refreshes the token and retries exactly once", async () => {
   const authorizations = [];
