@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
-import { API_ORIGIN, apiErrorMessage, getAccessToken } from "@/lib/faulttrace-api";
+import { API_ORIGIN, apiErrorMessage, authenticatedFetch } from "@/lib/faulttrace-api";
 
 type Role = "admin" | "technician";
 
@@ -34,10 +34,7 @@ export function TeamAccess({ workspaceId }: { workspaceId: string }) {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(`${API_ORIGIN}/workspaces/${workspaceId}/members`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authenticatedFetch(`${API_ORIGIN}/workspaces/${workspaceId}/members`);
       if (!response.ok) {
         throw new Error(await apiErrorMessage(response, "Team access could not be loaded."));
       }
@@ -74,11 +71,9 @@ export function TeamAccess({ workspaceId }: { workspaceId: string }) {
 
     setIsInviting(true);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(`${API_ORIGIN}/workspaces/${workspaceId}/invitations`, {
+      const response = await authenticatedFetch(`${API_ORIGIN}/workspaces/${workspaceId}/invitations`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({

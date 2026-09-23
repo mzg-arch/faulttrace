@@ -13,11 +13,14 @@ from app.routers.documents import (
     SIGNED_URL_SECONDS,
     access_document,
     archive_document,
+    index_document,
+    index_pdf_content,
     list_documents,
     sanitize_filename,
     upload_document,
     validate_document_file,
 )
+from app.pdf_indexing import DocumentChunk, PdfExtractionResult
 from app.settings import Settings
 
 
@@ -48,6 +51,11 @@ def document_record(**overrides: object) -> dict[str, object]:
         "file_name": "acs580-hardware-manual.pdf",
         "content_type": "application/pdf",
         "size_bytes": 1024,
+        "index_status": "not_indexed",
+        "indexed_at": None,
+        "indexed_page_count": 0,
+        "indexed_chunk_count": 0,
+        "indexing_error_code": None,
         "created_at": "2026-09-21T12:00:00Z",
         "updated_at": "2026-09-21T12:00:00Z",
     }
@@ -81,6 +89,11 @@ class FakeDocumentGateway:
         self.created_payload: dict[str, object] | None = None
         self.return_empty_create = False
         self.removed_path: str | None = None
+        self.index_status_values: dict[str, object] | None = None
+        self.index_status_history: list[dict[str, object]] = []
+        self.replaced_chunks: list[dict[str, object]] | None = None
+        self.index_document_scope: tuple[str, str] | None = None
+        self.downloaded_path: str | None = None
         self.equipment_record: dict[str, object] | None = {
             "id": str(EQUIPMENT_ID),
             "name": "ACS580 Drive",
@@ -113,6 +126,22 @@ class FakeDocumentGateway:
     ) -> dict[str, object] | None:
         self.access_scope = (workspace_id, document_id)
         return self.access_record
+
+    async def get_document_for_index(
+        self,
+        workspace_id: str,
+        document_id: str,
+    ) -> dict[str, object] | None:
+        self.index_document_scope = (workspace_id, document_id)
+        return {
+            **document_record(),
+            "workspace_id": str(WORKSPACE_ID),
+            "storage_path": f"{WORKSPACE_ID}/{DOCUMENT_ID}/manual.pdf",
+        }
+
+    async def download_document_file(self, storage_path: str) -> bytes:
+        self.downloaded_path = storage_path
+        return b"%PDF-1.7\ntext"
 
     async def create_document_signed_url(
         self,
@@ -158,6 +187,24 @@ class FakeDocumentGateway:
 
     async def remove_document_file(self, storage_path: str) -> None:
         self.removed_path = storage_path
+
+    async def update_document_index_status(
+        self,
+        _workspace_id: str,
+        _document_id: str,
+        values: dict[str, object],
+    ) -> dict[str, object]:
+        self.index_status_values = values
+        self.index_status_history.append(values)
+        return document_record(**values)
+
+    async def replace_document_chunks(
+        self,
+        _workspace_id: str,
+        _document_id: str,
+        chunks: list[dict[str, object]],
+    ) -> None:
+        self.replaced_chunks = chunks
 
 
 class FakeUpload:
@@ -214,6 +261,27 @@ class DocumentFileValidationTests(unittest.TestCase):
 
         self.assertEqual(context.exception.status_code, 413)
 
+    def test_pdf_without_readable_text_is_marked_no_text_and_chunks_are_cleared(self) -> None:
+        gateway = FakeDocumentGateway()
+        with patch(
+            "app.routers.documents.extract_pdf_chunks",
+            return_value=PdfExtractionResult(readable_page_count=0, chunks=[]),
+        ):
+            result = asyncio.run(
+                index_pdf_content(
+                    gateway,  # type: ignore[arg-type]
+                    WORKSPACE_ID,
+                    document_record(),
+                    b"%PDF-scanned",
+                )
+            )
+
+        self.assertEqual(result["index_status"], "no_text")
+        self.assertEqual(result["indexing_error_code"], "no_readable_text")
+        self.assertEqual(gateway.replaced_chunks, [])
+        self.assertEqual(gateway.index_status_history[0]["index_status"], "indexing")
+        self.assertEqual(gateway.index_status_history[-1]["index_status"], "no_text")
+
 
 class DocumentEndpointTests(unittest.TestCase):
     def test_technician_list_excludes_non_approved_documents(self) -> None:
@@ -269,6 +337,61 @@ class DocumentEndpointTests(unittest.TestCase):
                 )
 
         self.assertEqual(context.exception.status_code, 403)
+
+    def test_technician_cannot_index_document(self) -> None:
+        authorization = AsyncMock(
+            side_effect=HTTPException(status_code=403, detail="Admin access is required.")
+        )
+        with patch("app.routers.documents.authorized_workspace_admin", authorization):
+            with self.assertRaises(HTTPException) as context:
+                asyncio.run(
+                    index_document(
+                        WORKSPACE_ID,
+                        DOCUMENT_ID,
+                        "token",
+                        test_settings(),
+                    )
+                )
+
+        self.assertEqual(context.exception.status_code, 403)
+
+    def test_admin_explicit_index_is_workspace_scoped_and_page_aware(self) -> None:
+        gateway = FakeDocumentGateway()
+        authorization = AsyncMock(return_value=(gateway, {"id": "caller-id"}))
+        extraction = PdfExtractionResult(
+            readable_page_count=1,
+            chunks=[
+                DocumentChunk(
+                    page_number=17,
+                    chunk_index=0,
+                    content="F0001 start permissive evidence.",
+                )
+            ],
+        )
+        with (
+            patch("app.routers.documents.authorized_workspace_admin", authorization),
+            patch("app.routers.documents.extract_pdf_chunks", return_value=extraction),
+        ):
+            result = asyncio.run(
+                index_document(
+                    WORKSPACE_ID,
+                    DOCUMENT_ID,
+                    "token",
+                    test_settings(),
+                )
+            )
+
+        self.assertEqual(
+            gateway.index_document_scope,
+            (str(WORKSPACE_ID), str(DOCUMENT_ID)),
+        )
+        self.assertEqual(
+            gateway.downloaded_path,
+            f"{WORKSPACE_ID}/{DOCUMENT_ID}/manual.pdf",
+        )
+        self.assertEqual(result.index_status, "indexed")
+        self.assertEqual(result.indexed_page_count, 1)
+        self.assertEqual(gateway.replaced_chunks[0]["page_number"], 17)
 
     def test_technician_cannot_open_archived_document(self) -> None:
         gateway = FakeDocumentGateway()
@@ -357,7 +480,14 @@ class DocumentEndpointTests(unittest.TestCase):
     def test_admin_upload_uses_private_workspace_path_and_approval_metadata(self) -> None:
         gateway = FakeDocumentGateway()
         authorization = AsyncMock(return_value=(gateway, {"id": "caller-id"}))
-        with patch("app.routers.documents.authorized_workspace_admin", authorization):
+        extraction = PdfExtractionResult(
+            readable_page_count=1,
+            chunks=[DocumentChunk(page_number=1, chunk_index=0, content="Approved PDF text")],
+        )
+        with (
+            patch("app.routers.documents.authorized_workspace_admin", authorization),
+            patch("app.routers.documents.extract_pdf_chunks", return_value=extraction),
+        ):
             result = asyncio.run(
                 upload_document(
                     WORKSPACE_ID,

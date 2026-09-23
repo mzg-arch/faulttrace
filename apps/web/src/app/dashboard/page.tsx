@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
+import { getVerifiedDashboardUser, retryProtectedQueriesOnce } from "@/lib/dashboard-access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DocumentManagement } from "./document-management";
 import { EquipmentManagement } from "./equipment-management";
@@ -116,7 +117,7 @@ function DashboardNotice({
 
 export default async function DashboardPage() {
   const supabase = await createSupabaseServerClient();
-  const { data: authData, error: authError } = await supabase.auth.getUser();
+  const { data: authData, error: authError } = await getVerifiedDashboardUser(supabase);
   const user = authData.user;
 
   if (authError || !user) {
@@ -124,14 +125,17 @@ export default async function DashboardPage() {
   }
 
   const email = user.email ?? "Signed-in account";
-  const [profileResult, membershipResult] = await Promise.all([
-    supabase.from("profiles").select("id, display_name").eq("id", user.id).maybeSingle(),
-    supabase
-      .from("workspace_memberships")
-      .select("workspace_id, role")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: true }),
-  ]);
+  const [profileResult, membershipResult] = await retryProtectedQueriesOnce(
+    supabase,
+    () => Promise.all([
+      supabase.from("profiles").select("id, display_name").eq("id", user.id).maybeSingle(),
+      supabase
+        .from("workspace_memberships")
+        .select("workspace_id, role")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true }),
+    ]),
+  );
 
   if (profileResult.error || membershipResult.error) {
     return (
@@ -164,11 +168,16 @@ export default async function DashboardPage() {
     );
   }
 
-  const workspaceResult = await supabase
-    .from("workspaces")
-    .select("id, name")
-    .eq("id", membership.workspace_id)
-    .maybeSingle();
+  const [workspaceResult] = await retryProtectedQueriesOnce(
+    supabase,
+    () => Promise.all([
+      supabase
+        .from("workspaces")
+        .select("id, name")
+        .eq("id", membership.workspace_id)
+        .maybeSingle(),
+    ]),
+  );
 
   if (workspaceResult.error || !workspaceResult.data) {
     return (

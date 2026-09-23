@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { API_ORIGIN, apiErrorMessage, getAccessToken } from "@/lib/faulttrace-api";
+import { API_ORIGIN, apiErrorMessage, authenticatedFetch } from "@/lib/faulttrace-api";
 import {
   DOCUMENT_TYPE_LABELS,
   formatFileSize,
@@ -23,10 +23,7 @@ export function TechnicianDocuments({ workspaceId }: { workspaceId: string }) {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(`${API_ORIGIN}/workspaces/${workspaceId}/documents`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authenticatedFetch(`${API_ORIGIN}/workspaces/${workspaceId}/documents`);
       if (!response.ok) {
         throw new Error(await apiErrorMessage(response, "Documents could not be loaded."));
       }
@@ -71,10 +68,9 @@ export function TechnicianDocuments({ workspaceId }: { workspaceId: string }) {
     setOpeningId(document.id);
     setLoadError(null);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${API_ORIGIN}/workspaces/${workspaceId}/documents/${document.id}/access`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+        { method: "POST" },
       );
       if (!response.ok) {
         throw new Error(await apiErrorMessage(response, "Document could not be opened."));

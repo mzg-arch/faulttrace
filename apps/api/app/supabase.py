@@ -356,7 +356,7 @@ class SupabaseGateway:
             "/rest/v1/equipment",
             key=self.secret_key,
             params={
-                "select": "id,name,asset_tag,status",
+                "select": "id,name,asset_tag,manufacturer,model,status",
                 "workspace_id": f"eq.{workspace_id}",
                 "id": f"eq.{equipment_id}",
                 "limit": "1",
@@ -466,7 +466,9 @@ class SupabaseGateway:
         params = {
             "select": (
                 "id,title,document_type,status,equipment_id,source_revision,description,"
-                "file_name,content_type,size_bytes,created_at,updated_at"
+                "file_name,content_type,size_bytes,index_status,indexed_at,"
+                "indexed_page_count,indexed_chunk_count,indexing_error_code,"
+                "created_at,updated_at"
             ),
             "workspace_id": f"eq.{workspace_id}",
             "order": "title.asc,created_at.desc",
@@ -545,7 +547,7 @@ class SupabaseGateway:
             "/rest/v1/documents",
             key=self.secret_key,
             params={
-                "select": "id,status,storage_path,file_name",
+                "select": "id,status,storage_path,file_name,content_type",
                 "workspace_id": f"eq.{workspace_id}",
                 "id": f"eq.{document_id}",
                 "limit": "1",
@@ -554,6 +556,156 @@ class SupabaseGateway:
         )
         records = response.json()
         return records[0] if records else None
+
+    async def get_document_for_index(
+        self,
+        workspace_id: str,
+        document_id: str,
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "GET",
+            "/rest/v1/documents",
+            key=self.secret_key,
+            params={
+                "select": (
+                    "id,workspace_id,equipment_id,title,document_type,status,storage_path,"
+                    "source_revision,description,file_name,content_type,size_bytes,"
+                    "index_status,indexed_at,indexed_page_count,indexed_chunk_count,"
+                    "indexing_error_code,created_at,updated_at"
+                ),
+                "workspace_id": f"eq.{workspace_id}",
+                "id": f"eq.{document_id}",
+                "limit": "1",
+            },
+            operation="get_document_for_index",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def download_document_file(self, storage_path: str) -> bytes:
+        encoded_path = quote(storage_path, safe="/")
+        response = await self._request(
+            "GET",
+            f"/storage/v1/object/{self.document_bucket}/{encoded_path}",
+            key=self.secret_key,
+            headers={"Accept": "application/pdf"},
+            operation="download_document_file",
+        )
+        return response.content
+
+    async def update_document_index_status(
+        self,
+        workspace_id: str,
+        document_id: str,
+        values: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "PATCH",
+            "/rest/v1/documents",
+            key=self.secret_key,
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "id": f"eq.{document_id}",
+            },
+            json=values,
+            headers={"Prefer": "return=representation"},
+            operation="update_document_index_status",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def replace_document_chunks(
+        self,
+        workspace_id: str,
+        document_id: str,
+        chunks: list[dict[str, Any]],
+    ) -> None:
+        await self._request(
+            "DELETE",
+            "/rest/v1/document_chunks",
+            key=self.secret_key,
+            params={
+                "workspace_id": f"eq.{workspace_id}",
+                "document_id": f"eq.{document_id}",
+            },
+            operation="clear_document_chunks",
+        )
+        for start in range(0, len(chunks), 200):
+            await self._request(
+                "POST",
+                "/rest/v1/document_chunks",
+                key=self.secret_key,
+                json=chunks[start : start + 200],
+                headers={"Prefer": "return=minimal"},
+                operation="insert_document_chunks",
+            )
+
+    async def search_approved_document_chunks(
+        self,
+        workspace_id: str,
+        equipment_id: str,
+        search_text: str,
+        *,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        response = await self._request(
+            "POST",
+            "/rest/v1/rpc/search_grounded_document_chunks",
+            key=self.secret_key,
+            json={
+                "target_workspace_id": workspace_id,
+                "target_equipment_id": equipment_id,
+                "target_search_text": search_text,
+                "target_limit": limit,
+            },
+            operation="search_grounded_document_chunks",
+        )
+        return response.json()
+
+    async def get_latest_guidance_plan(
+        self,
+        workspace_id: str,
+        report_id: str,
+        *,
+        created_by: str | None,
+    ) -> dict[str, Any] | None:
+        params = {
+            "select": (
+                "id,fault_report_id,status,case_summary,safety_brief_items,guided_checks,"
+                "escalation_criteria,evidence_chunk_ids,evidence_snapshot,model,created_by,"
+                "created_at"
+            ),
+            "workspace_id": f"eq.{workspace_id}",
+            "fault_report_id": f"eq.{report_id}",
+            "order": "created_at.desc",
+            "limit": "1",
+        }
+        if created_by:
+            params["created_by"] = f"eq.{created_by}"
+        response = await self._request(
+            "GET",
+            "/rest/v1/guidance_plans",
+            key=self.secret_key,
+            params=params,
+            operation="get_latest_guidance_plan",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def create_guidance_plan(
+        self,
+        plan: dict[str, Any],
+    ) -> dict[str, Any]:
+        response = await self._request(
+            "POST",
+            "/rest/v1/guidance_plans",
+            key=self.secret_key,
+            json=plan,
+            headers={"Prefer": "return=representation"},
+            operation="create_guidance_plan",
+        )
+        records = response.json()
+        return records[0] if records else {}
 
     async def upload_document_file(
         self,
@@ -626,7 +778,7 @@ class SupabaseGateway:
         operation: str,
         bearer: str | None = None,
         params: dict[str, str] | None = None,
-        json: dict[str, Any] | None = None,
+        json: Any | None = None,
         content: bytes | None = None,
         headers: dict[str, str] | None = None,
     ) -> httpx.Response:

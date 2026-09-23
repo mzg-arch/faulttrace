@@ -1,5 +1,6 @@
-"""Approved workspace document library endpoints."""
+"""Approved workspace document library and PDF indexing endpoints."""
 
+import asyncio
 import logging
 import re
 from datetime import UTC, datetime
@@ -17,6 +18,7 @@ from app.authorization import (
     authorized_workspace_admin,
     authorized_workspace_member,
 )
+from app.pdf_indexing import PdfIndexingFailure, extract_pdf_chunks
 from app.supabase import SupabaseGateway, SupabaseRequestError
 
 
@@ -27,6 +29,14 @@ MAX_DOCUMENT_BYTES = 10 * 1024 * 1024
 SIGNED_URL_SECONDS = 60
 DocumentType = Literal["manual", "diagram", "bulletin", "fault_code_sheet"]
 DocumentStatus = Literal["draft", "approved", "archived"]
+DocumentIndexStatus = Literal[
+    "not_indexed",
+    "indexing",
+    "indexed",
+    "no_text",
+    "failed",
+    "unsupported",
+]
 
 ALLOWED_FILE_TYPES = {
     ".pdf": "application/pdf",
@@ -73,6 +83,11 @@ class DocumentResponse(BaseModel):
     file_name: str | None
     content_type: str | None
     size_bytes: int | None
+    index_status: DocumentIndexStatus
+    indexed_at: datetime | None
+    indexed_page_count: int
+    indexed_chunk_count: int
+    indexing_error_code: str | None
     created_at: datetime
     updated_at: datetime
 
@@ -179,10 +194,10 @@ async def parse_document_upload(request: Request) -> tuple[DocumentMetadataInput
 
 def document_http_error(error: SupabaseRequestError, action: str) -> HTTPException:
     code = (error.code or "").lower()
-    if code in {"42703", "pgrst204"}:
+    if code in {"42p01", "42703", "pgrst204", "pgrst205"}:
         return HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Document Library setup is incomplete. Apply the pending document migration.",
+            detail="Document or evidence setup is incomplete. Apply the pending migrations.",
         )
     if error.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
         return HTTPException(
@@ -226,6 +241,129 @@ def document_response(
             "equipment_name": equipment.get("name") if equipment else None,
         }
     )
+
+
+async def mark_index_failure(
+    gateway: SupabaseGateway,
+    workspace_id: UUID,
+    document_id: str,
+    error_code: str,
+) -> dict[str, Any] | None:
+    return await gateway.update_document_index_status(
+        str(workspace_id),
+        document_id,
+        {
+            "index_status": "failed",
+            "indexed_at": None,
+            "indexed_page_count": 0,
+            "indexed_chunk_count": 0,
+            "indexing_error_code": error_code,
+        },
+    )
+
+
+async def index_pdf_content(
+    gateway: SupabaseGateway,
+    workspace_id: UUID,
+    document: dict[str, Any],
+    content: bytes,
+) -> dict[str, Any]:
+    document_id = str(document["id"])
+    indexing_record = await gateway.update_document_index_status(
+        str(workspace_id),
+        document_id,
+        {
+            "index_status": "indexing",
+            "indexed_at": None,
+            "indexed_page_count": 0,
+            "indexed_chunk_count": 0,
+            "indexing_error_code": None,
+        },
+    )
+    if indexing_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document was not found in this workspace.",
+        )
+
+    try:
+        extraction = await asyncio.to_thread(extract_pdf_chunks, content)
+        if not extraction.chunks:
+            await gateway.replace_document_chunks(str(workspace_id), document_id, [])
+            updated = await gateway.update_document_index_status(
+                str(workspace_id),
+                document_id,
+                {
+                    "index_status": "no_text",
+                    "indexed_at": datetime.now(UTC).isoformat(),
+                    "indexed_page_count": 0,
+                    "indexed_chunk_count": 0,
+                    "indexing_error_code": "no_readable_text",
+                },
+            )
+            return updated or {
+                **indexing_record,
+                "index_status": "no_text",
+                "indexing_error_code": "no_readable_text",
+            }
+
+        chunk_records = [
+            {
+                "workspace_id": str(workspace_id),
+                "document_id": document_id,
+                "page_number": chunk.page_number,
+                "chunk_index": chunk.chunk_index,
+                "content": chunk.content,
+            }
+            for chunk in extraction.chunks
+        ]
+        await gateway.replace_document_chunks(
+            str(workspace_id),
+            document_id,
+            chunk_records,
+        )
+        updated = await gateway.update_document_index_status(
+            str(workspace_id),
+            document_id,
+            {
+                "index_status": "indexed",
+                "indexed_at": datetime.now(UTC).isoformat(),
+                "indexed_page_count": extraction.readable_page_count,
+                "indexed_chunk_count": len(chunk_records),
+                "indexing_error_code": None,
+            },
+        )
+        if updated is None:
+            raise SupabaseRequestError(
+                502,
+                "update_document_index_status",
+                "empty_response",
+                "Supabase did not return indexed document metadata",
+            )
+        return updated
+    except PdfIndexingFailure as error:
+        updated = await mark_index_failure(
+            gateway,
+            workspace_id,
+            document_id,
+            error.code,
+        )
+        return updated or {
+            **indexing_record,
+            "index_status": "failed",
+            "indexing_error_code": error.code,
+        }
+    except (httpx.HTTPError, SupabaseRequestError):
+        try:
+            await mark_index_failure(
+                gateway,
+                workspace_id,
+                document_id,
+                "index_store_failed",
+            )
+        except (httpx.HTTPError, SupabaseRequestError):
+            logger.error("PDF index status cleanup failed")
+        raise
 
 
 @router.get("/{workspace_id}/documents", response_model=list[DocumentResponse])
@@ -286,6 +424,7 @@ async def upload_document(
             await close()
 
     safe_filename = validate_document_file(filename, content_type, content)
+    content_type = content_type.lower().split(";", 1)[0].strip()
 
     try:
         equipment = await linked_equipment(gateway, workspace_id, metadata.equipment_id)
@@ -318,6 +457,11 @@ async def upload_document(
                 "file_name": safe_filename,
                 "content_type": content_type,
                 "size_bytes": len(content),
+                "index_status": (
+                    "indexing" if content_type == "application/pdf" else "unsupported"
+                ),
+                "indexed_page_count": 0,
+                "indexed_chunk_count": 0,
                 "created_by": user["id"],
                 "approved_by": user["id"],
                 "approved_at": now,
@@ -350,7 +494,85 @@ async def upload_document(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Supabase did not return the uploaded document record.",
         )
+    if content_type == "application/pdf":
+        try:
+            record = await index_pdf_content(
+                gateway,
+                workspace_id,
+                record,
+                content,
+            )
+        except (httpx.HTTPError, SupabaseRequestError):
+            logger.error("Automatic PDF indexing failed after document upload")
+            record = {
+                **record,
+                "index_status": "failed",
+                "indexed_at": None,
+                "indexed_page_count": 0,
+                "indexed_chunk_count": 0,
+                "indexing_error_code": "index_store_failed",
+            }
     return document_response(record, equipment)
+
+
+@router.post(
+    "/{workspace_id}/documents/{document_id}/index",
+    response_model=DocumentResponse,
+)
+async def index_document(
+    workspace_id: UUID,
+    document_id: UUID,
+    token: TokenDependency,
+    settings: SettingsDependency,
+) -> DocumentResponse:
+    gateway, _ = await authorized_workspace_admin(workspace_id, token, settings)
+    try:
+        document = await gateway.get_document_for_index(
+            str(workspace_id),
+            str(document_id),
+        )
+        if document is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document was not found in this workspace.",
+            )
+        if document.get("status") != "approved":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Only approved documents can be indexed as evidence.",
+            )
+        if document.get("content_type") != "application/pdf":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Only PDF documents support text evidence indexing.",
+            )
+        content = await gateway.download_document_file(document["storage_path"])
+        if not content or len(content) > MAX_DOCUMENT_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="The stored PDF is empty or exceeds the 10 MB indexing limit.",
+            )
+        indexed = await index_pdf_content(
+            gateway,
+            workspace_id,
+            document,
+            content,
+        )
+        equipment = await linked_equipment(
+            gateway,
+            workspace_id,
+            UUID(indexed["equipment_id"]) if indexed.get("equipment_id") else None,
+        )
+    except HTTPException:
+        raise
+    except SupabaseRequestError as error:
+        raise document_http_error(error, "index") from None
+    except httpx.HTTPError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The PDF indexing service is unavailable.",
+        ) from None
+    return document_response(indexed, equipment)
 
 
 @router.patch("/{workspace_id}/documents/{document_id}", response_model=DocumentResponse)

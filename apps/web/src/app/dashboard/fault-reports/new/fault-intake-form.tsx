@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
-import { API_ORIGIN, apiErrorMessage, getAccessToken } from "@/lib/faulttrace-api";
+import { API_ORIGIN, apiErrorMessage, authenticatedFetch } from "@/lib/faulttrace-api";
 import type { ActiveEquipment, FaultReport } from "../../fault-report-types";
 
 const fieldClass =
@@ -32,10 +32,7 @@ export function FaultIntakeForm({
     setIsLoading(true);
     setLoadError(null);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(`${API_ORIGIN}/workspaces/${workspaceId}/equipment`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authenticatedFetch(`${API_ORIGIN}/workspaces/${workspaceId}/equipment`);
       if (!response.ok) {
         throw new Error(await apiErrorMessage(response, "Active equipment could not be loaded."));
       }
@@ -72,11 +69,9 @@ export function FaultIntakeForm({
 
     setIsSaving(true);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(`${API_ORIGIN}/workspaces/${workspaceId}/fault-reports`, {
+      const response = await authenticatedFetch(`${API_ORIGIN}/workspaces/${workspaceId}/fault-reports`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({

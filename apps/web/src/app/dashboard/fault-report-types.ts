@@ -31,6 +31,57 @@ export type ActiveEquipment = {
   status: "active";
 };
 
+export type EvidenceExcerpt = {
+  chunk_id: number;
+  document_id: string;
+  document_title: string;
+  document_type: "manual" | "diagram" | "bulletin" | "fault_code_sheet";
+  source_revision: string | null;
+  page_number: number;
+  excerpt: string;
+  equipment_linked: boolean;
+  source_url: string;
+  source_url_expires_in: number;
+};
+
+export type CitedStatement = {
+  text: string;
+  citation_ids: number[];
+};
+
+export type GuidanceCheck = {
+  title: string;
+  supported_action: string;
+  citation_ids: number[];
+};
+
+export type GuidanceEvidence = Omit<EvidenceExcerpt, "source_url" | "source_url_expires_in"> & {
+  source_available: boolean;
+  source_url: string | null;
+  source_url_expires_in: number | null;
+};
+
+export type GuidancePlan = {
+  id: string;
+  fault_report_id: string;
+  status: "grounded" | "insufficient_evidence";
+  case_summary: CitedStatement;
+  safety_brief_items: CitedStatement[];
+  guided_checks: GuidanceCheck[];
+  escalation_criteria: CitedStatement[];
+  evidence_citation_ids: number[];
+  evidence: GuidanceEvidence[];
+  model: string | null;
+  created_by: string;
+  created_at: string;
+};
+
+export type EvidenceRetrievalResponse = {
+  report_id: string;
+  evidence: EvidenceExcerpt[];
+  message: string;
+};
+
 export const SAFETY_ACKNOWLEDGEMENTS = [
   {
     key: "ack_authorized_qualified",

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
-import { API_ORIGIN, apiErrorMessage, getAccessToken } from "@/lib/faulttrace-api";
+import { API_ORIGIN, apiErrorMessage, authenticatedFetch } from "@/lib/faulttrace-api";
 
 type EquipmentStatus = "active" | "archived";
 
@@ -68,10 +68,7 @@ export function EquipmentManagement({ workspaceId }: { workspaceId: string }) {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(`${API_ORIGIN}/workspaces/${workspaceId}/equipment`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authenticatedFetch(`${API_ORIGIN}/workspaces/${workspaceId}/equipment`);
       if (!response.ok) {
         throw new Error(await apiErrorMessage(response, "Equipment could not be loaded."));
       }
@@ -133,14 +130,12 @@ export function EquipmentManagement({ workspaceId }: { workspaceId: string }) {
 
     setIsSaving(true);
     try {
-      const token = await getAccessToken();
       const endpoint = editingId
         ? `${API_ORIGIN}/workspaces/${workspaceId}/equipment/${editingId}`
         : `${API_ORIGIN}/workspaces/${workspaceId}/equipment`;
-      const response = await fetch(endpoint, {
+      const response = await authenticatedFetch(endpoint, {
         method: editingId ? "PATCH" : "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),
@@ -171,13 +166,9 @@ export function EquipmentManagement({ workspaceId }: { workspaceId: string }) {
     setFormError(null);
     setSuccess(null);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${API_ORIGIN}/workspaces/${workspaceId}/equipment/${item.id}/archive`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        },
+        { method: "POST" },
       );
       if (!response.ok) {
         setFormError(await apiErrorMessage(response, "Equipment could not be archived."));

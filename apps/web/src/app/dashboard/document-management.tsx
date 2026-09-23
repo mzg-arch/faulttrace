@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
-import { API_ORIGIN, apiErrorMessage, getAccessToken } from "@/lib/faulttrace-api";
+import { API_ORIGIN, apiErrorMessage, authenticatedFetch, getAccessToken } from "@/lib/faulttrace-api";
 import {
   DOCUMENT_TYPE_LABELS,
+  documentIndexLabel,
   formatFileSize,
   type DocumentType,
   type EquipmentOption,
@@ -87,6 +88,7 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
   const [isSaving, setIsSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [busyDocumentId, setBusyDocumentId] = useState<string | null>(null);
+  const [indexingDocumentId, setIndexingDocumentId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -103,11 +105,9 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const token = await getAccessToken();
-      const headers = { Authorization: `Bearer ${token}` };
       const [documentResponse, equipmentResponse] = await Promise.all([
-        fetch(`${API_ORIGIN}/workspaces/${workspaceId}/documents`, { headers }),
-        fetch(`${API_ORIGIN}/workspaces/${workspaceId}/equipment`, { headers }),
+        authenticatedFetch(`${API_ORIGIN}/workspaces/${workspaceId}/documents`),
+        authenticatedFetch(`${API_ORIGIN}/workspaces/${workspaceId}/equipment`),
       ]);
       if (!documentResponse.ok) {
         throw new Error(await apiErrorMessage(documentResponse, "Documents could not be loaded."));
@@ -184,15 +184,13 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
     setIsSaving(true);
     setUploadProgress(0);
     try {
-      const token = await getAccessToken();
       let saved: LibraryDocument;
       if (editingId) {
-        const response = await fetch(
+        const response = await authenticatedFetch(
           `${API_ORIGIN}/workspaces/${workspaceId}/documents/${editingId}`,
           {
             method: "PATCH",
             headers: {
-              Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify(metadata),
@@ -203,6 +201,7 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
         }
         saved = (await response.json()) as LibraryDocument;
       } else {
+        const token = await getAccessToken();
         const body = new FormData();
         body.set("title", metadata.title);
         body.set("document_type", metadata.document_type);
@@ -238,10 +237,9 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
     setFormError(null);
     setSuccess(null);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${API_ORIGIN}/workspaces/${workspaceId}/documents/${document.id}/archive`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+        { method: "POST" },
       );
       if (!response.ok) {
         throw new Error(await apiErrorMessage(response, "Document could not be archived."));
@@ -264,10 +262,9 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
     setBusyDocumentId(document.id);
     setFormError(null);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${API_ORIGIN}/workspaces/${workspaceId}/documents/${document.id}/access`,
-        { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+        { method: "POST" },
       );
       if (!response.ok) {
         throw new Error(await apiErrorMessage(response, "Document could not be opened."));
@@ -282,6 +279,37 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
       setFormError(error instanceof Error ? error.message : "The document service is unavailable.");
     } finally {
       setBusyDocumentId(null);
+    }
+  }
+
+  async function indexDocument(document: LibraryDocument) {
+    if (indexingDocumentId || busyDocumentId || document.content_type !== "application/pdf") return;
+    setIndexingDocumentId(document.id);
+    setFormError(null);
+    setSuccess(null);
+    try {
+      const response = await authenticatedFetch(
+        `${API_ORIGIN}/workspaces/${workspaceId}/documents/${document.id}/index`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        throw new Error(await apiErrorMessage(response, "PDF could not be indexed."));
+      }
+      const indexed = (await response.json()) as LibraryDocument;
+      setDocuments((current) =>
+        sortDocuments(current.map((item) => (item.id === indexed.id ? indexed : item))),
+      );
+      if (indexed.index_status === "indexed") {
+        setSuccess(`${indexed.title} indexed with ${indexed.indexed_chunk_count} page-aware excerpts.`);
+      } else if (indexed.index_status === "no_text") {
+        setSuccess(`${indexed.title} has no readable PDF text. OCR was not attempted.`);
+      } else {
+        setFormError(`${indexed.title} could not be indexed. Check the PDF and API dependency setup.`);
+      }
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "The PDF indexing service is unavailable.");
+    } finally {
+      setIndexingDocumentId(null);
     }
   }
 
@@ -318,11 +346,13 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
                       <p className="mt-3 text-sm text-slate-400">{document.description ?? "No description provided."}</p>
                       <p className="mt-3 text-xs text-slate-500">{document.equipment_name ?? "General workspace document"}{document.source_revision ? ` · ${document.source_revision}` : ""}</p>
                       <p className="mt-1 text-xs text-slate-600">{document.file_name ?? "Stored file"} · {formatFileSize(document.size_bytes)}</p>
+                      <p className={document.index_status === "indexed" ? "mt-2 text-xs font-medium text-emerald-300" : document.index_status === "no_text" || document.index_status === "failed" ? "mt-2 text-xs font-medium text-amber-200" : "mt-2 text-xs text-slate-500"}>{documentIndexLabel(document)}</p>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
-                      <button type="button" onClick={() => void openDocument(document)} disabled={busyDocumentId !== null} className="rounded-lg border border-cyan-300/20 px-3 py-2 text-xs font-semibold text-cyan-100 hover:border-cyan-300/50 disabled:opacity-50">{busyDocumentId === document.id ? "Opening..." : "Open"}</button>
-                      <button type="button" onClick={() => editDocument(document)} disabled={isSaving || busyDocumentId !== null} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-300/40 disabled:opacity-50">Edit</button>
-                      {document.status !== "archived" && <button type="button" onClick={() => void archiveDocument(document)} disabled={busyDocumentId !== null || isSaving} className="rounded-lg border border-amber-300/20 px-3 py-2 text-xs font-semibold text-amber-100 hover:border-amber-300/50 disabled:opacity-50">{busyDocumentId === document.id ? "Archiving..." : "Archive"}</button>}
+                      <button type="button" onClick={() => void openDocument(document)} disabled={busyDocumentId !== null || indexingDocumentId !== null} className="rounded-lg border border-cyan-300/20 px-3 py-2 text-xs font-semibold text-cyan-100 hover:border-cyan-300/50 disabled:opacity-50">{busyDocumentId === document.id ? "Opening..." : "Open"}</button>
+                      {document.status === "approved" && document.content_type === "application/pdf" && <button type="button" onClick={() => void indexDocument(document)} disabled={indexingDocumentId !== null || busyDocumentId !== null || isSaving} className="rounded-lg border border-emerald-300/20 px-3 py-2 text-xs font-semibold text-emerald-100 hover:border-emerald-300/50 disabled:opacity-50">{indexingDocumentId === document.id ? "Indexing..." : document.index_status === "indexed" ? "Reindex PDF" : "Index PDF"}</button>}
+                      <button type="button" onClick={() => editDocument(document)} disabled={isSaving || busyDocumentId !== null || indexingDocumentId !== null} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-300/40 disabled:opacity-50">Edit</button>
+                      {document.status !== "archived" && <button type="button" onClick={() => void archiveDocument(document)} disabled={busyDocumentId !== null || indexingDocumentId !== null || isSaving} className="rounded-lg border border-amber-300/20 px-3 py-2 text-xs font-semibold text-amber-100 hover:border-amber-300/50 disabled:opacity-50">{busyDocumentId === document.id ? "Archiving..." : "Archive"}</button>}
                     </div>
                   </div>
                 </li>

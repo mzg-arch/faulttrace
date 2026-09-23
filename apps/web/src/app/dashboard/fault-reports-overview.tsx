@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-import { API_ORIGIN, apiErrorMessage, getAccessToken } from "@/lib/faulttrace-api";
+import { API_ORIGIN, apiErrorMessage, authenticatedFetch } from "@/lib/faulttrace-api";
 import { formatReportDate, type FaultReport } from "./fault-report-types";
 
 export function FaultReportsOverview({
@@ -21,10 +21,7 @@ export function FaultReportsOverview({
     setIsLoading(true);
     setLoadError(null);
     try {
-      const token = await getAccessToken();
-      const response = await fetch(`${API_ORIGIN}/workspaces/${workspaceId}/fault-reports`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await authenticatedFetch(`${API_ORIGIN}/workspaces/${workspaceId}/fault-reports`);
       if (!response.ok) {
         throw new Error(await apiErrorMessage(response, "Fault reports could not be loaded."));
       }

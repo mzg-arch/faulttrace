@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_publishable_key: str = ""
     supabase_secret_key: SecretStr = SecretStr("")
+    gemini_api_key: SecretStr = SecretStr("")
+    gemini_model: str = "gemini-3.8-flash"
 
     @property
     def allowed_origins(self) -> list[str]:
@@ -36,6 +38,13 @@ class Settings(BaseSettings):
     def invite_redirect_url(self) -> str:
         """Use the first configured web origin; clients cannot choose a redirect."""
         return f"{self.allowed_origins[0].rstrip('/')}/auth/confirm" if self.allowed_origins else ""
+
+    @property
+    def gemini_is_configured(self) -> bool:
+        return bool(
+            self.gemini_api_key.get_secret_value().strip()
+            and self.gemini_model.strip()
+        )
 
     def validate_backend(self) -> None:
         """Fail startup with variable names only, never configuration values."""
