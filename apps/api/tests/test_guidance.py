@@ -546,6 +546,50 @@ class GuidancePlanTests(unittest.TestCase):
 
         self.assertEqual(context.exception.status_code, 403)
 
+    def test_technician_can_read_saved_plan_for_shared_resolved_report(self) -> None:
+        gateway = FakeGuidanceGateway()
+        other_technician_id = "77777777-7777-7777-7777-777777777777"
+        gateway.report = active_report(
+            status="resolved",
+            created_by=other_technician_id,
+        )
+        gateway.latest_record = {
+            "id": PLAN_ID,
+            "fault_report_id": str(REPORT_ID),
+            "status": "grounded",
+            "case_summary": grounded_draft().case_summary.model_dump(),
+            "safety_brief_items": [item.model_dump() for item in grounded_draft().safety_brief_items],
+            "guided_checks": [item.model_dump() for item in grounded_draft().guided_checks],
+            "escalation_criteria": [item.model_dump() for item in grounded_draft().escalation_criteria],
+            "evidence_chunk_ids": [17],
+            "evidence_snapshot": [
+                {key: value for key, value in evidence_match().items() if key != "relevance"}
+            ],
+            "model": "gemini-3.8-flash",
+            "created_by": other_technician_id,
+            "created_at": "2026-09-22T12:00:00Z",
+        }
+        authorization = AsyncMock(
+            return_value=(gateway, {"id": TECHNICIAN_ID}, "technician")
+        )
+
+        with patch(
+            "app.routers.guidance.authorized_workspace_member",
+            authorization,
+        ):
+            result = asyncio.run(
+                get_guidance_plan(
+                    WORKSPACE_ID,
+                    REPORT_ID,
+                    "token",
+                    test_settings(gemini_key=""),
+                )
+            )
+
+        self.assertEqual(result.status, "grounded")
+        self.assertEqual(gateway.report_scope[2], None)
+        self.assertEqual(gateway.latest_scope[2], None)
+
 
 if __name__ == "__main__":
     unittest.main()

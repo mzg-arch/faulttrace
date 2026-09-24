@@ -283,18 +283,39 @@ async def get_guidance_plan(
     settings: SettingsDependency,
 ) -> GuidancePlanResponse:
     gateway, user, role = await authorized_workspace_member(workspace_id, token, settings)
-    created_by = user["id"] if role == "technician" else None
     try:
-        await accessible_active_report(
-            gateway,
-            workspace_id,
-            report_id,
-            created_by=created_by,
+        report = await gateway.get_fault_report(
+            str(workspace_id),
+            str(report_id),
+            created_by=None,
+        )
+        if (
+            report is None
+            or (
+                role == "technician"
+                and report.get("created_by") != user["id"]
+                and report.get("status") != "resolved"
+            )
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Fault report was not found in this workspace.",
+            )
+        if report.get("status") not in {"active", "resolved"}:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Complete the Safety Gate before viewing evidence-grounded guidance.",
+            )
+
+        plan_creator = (
+            user["id"]
+            if role == "technician" and report.get("status") == "active"
+            else None
         )
         record = await gateway.get_latest_guidance_plan(
             str(workspace_id),
             str(report_id),
-            created_by=created_by,
+            created_by=plan_creator,
         )
         if record is None:
             raise HTTPException(

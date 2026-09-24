@@ -24,6 +24,30 @@ export type FaultReport = {
   updated_at: string;
 };
 
+export type ResolvedReportSummary = {
+  id: string;
+  equipment_id: string;
+  equipment_name: string;
+  equipment_asset_tag: string | null;
+  fault_code: string | null;
+  symptom: string;
+  resolved_at: string;
+  resolution_summary: string;
+  created_by: string;
+  report_owner: string | null;
+};
+
+export type FaultReportAttachment = {
+  id: string;
+  fault_report_id: string;
+  uploaded_by_user_id: string;
+  file_name: string;
+  mime_type: "image/jpeg" | "image/png" | "image/webp";
+  size_bytes: number;
+  created_at: string;
+  can_delete: boolean;
+};
+
 export type WorkLogEntryType =
   | "observation"
   | "action_taken"

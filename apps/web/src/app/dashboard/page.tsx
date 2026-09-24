@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -60,9 +61,9 @@ const technicianAreas = [
   },
   {
     number: "04",
-    title: "Recent cases",
-    description: "Revisit repairs your team chose to document and share.",
-    status: "Coming soon",
+    title: "Resolved history",
+    description: "Review completed reports, recorded outcomes, and supporting case records.",
+    status: "Available",
   },
 ];
 
@@ -223,6 +224,14 @@ export default async function DashboardPage() {
             <p className="mt-3 text-sm leading-7 text-slate-400">{area.description}</p>
           </article>
         ))}
+      </section>
+
+      <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-violet-300/15 bg-violet-300/5 p-5" aria-label="Resolved case history">
+        <div>
+          <h2 className="font-semibold text-white">Resolved case history</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-400">Search workspace outcomes and open complete cases in read-only mode.</p>
+        </div>
+        <Link href="/dashboard/resolved-history" className="rounded-xl border border-violet-300/25 px-4 py-3 text-sm font-semibold text-violet-100 hover:border-violet-300/60">Browse resolved history</Link>
       </section>
 
       {isAdmin ? (

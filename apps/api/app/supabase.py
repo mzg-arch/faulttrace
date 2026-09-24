@@ -78,6 +78,7 @@ class SupabaseRequestError(Exception):
 
 class SupabaseGateway:
     document_bucket = "faulttrace-sources"
+    fault_report_attachment_bucket = "fault-report-attachments"
 
     def __init__(self, settings: Settings) -> None:
         self.url = settings.supabase_url.strip().rstrip("/")
@@ -393,6 +394,28 @@ class SupabaseGateway:
         )
         return response.json()
 
+    async def search_resolved_fault_reports(
+        self,
+        workspace_id: str,
+        *,
+        equipment_id: str | None,
+        search_text: str | None,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        response = await self._request(
+            "POST",
+            "/rest/v1/rpc/search_resolved_fault_reports",
+            key=self.secret_key,
+            json={
+                "target_workspace_id": workspace_id,
+                "target_equipment_id": equipment_id,
+                "target_search_text": search_text,
+                "target_limit": limit,
+            },
+            operation="search_resolved_fault_reports",
+        )
+        return response.json()
+
     async def create_fault_report(self, report: dict[str, Any]) -> dict[str, Any]:
         response = await self._request(
             "POST",
@@ -496,6 +519,98 @@ class SupabaseGateway:
                 "target_resolution_summary": resolution_summary,
             },
             operation="resolve_fault_report",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def list_fault_report_attachments(
+        self,
+        workspace_id: str,
+        report_id: str,
+    ) -> list[dict[str, Any]]:
+        response = await self._request(
+            "GET",
+            "/rest/v1/fault_report_attachments",
+            key=self.secret_key,
+            params={
+                "select": (
+                    "id,workspace_id,fault_report_id,uploaded_by_user_id,"
+                    "storage_path,file_name,mime_type,size_bytes,created_at"
+                ),
+                "workspace_id": f"eq.{workspace_id}",
+                "fault_report_id": f"eq.{report_id}",
+                "order": "created_at.asc,id.asc",
+            },
+            operation="list_fault_report_attachments",
+        )
+        return response.json()
+
+    async def get_fault_report_attachment(
+        self,
+        workspace_id: str,
+        report_id: str,
+        attachment_id: str,
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "GET",
+            "/rest/v1/fault_report_attachments",
+            key=self.secret_key,
+            params={
+                "select": (
+                    "id,workspace_id,fault_report_id,uploaded_by_user_id,"
+                    "storage_path,file_name,mime_type,size_bytes,created_at"
+                ),
+                "workspace_id": f"eq.{workspace_id}",
+                "fault_report_id": f"eq.{report_id}",
+                "id": f"eq.{attachment_id}",
+                "limit": "1",
+            },
+            operation="get_fault_report_attachment",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def create_fault_report_attachment(
+        self,
+        attachment: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "POST",
+            "/rest/v1/rpc/create_fault_report_attachment",
+            key=self.secret_key,
+            json={
+                "target_id": attachment["id"],
+                "target_workspace_id": attachment["workspace_id"],
+                "target_report_id": attachment["fault_report_id"],
+                "target_user_id": attachment["uploaded_by_user_id"],
+                "target_storage_path": attachment["storage_path"],
+                "target_file_name": attachment["file_name"],
+                "target_mime_type": attachment["mime_type"],
+                "target_size_bytes": attachment["size_bytes"],
+            },
+            operation="create_fault_report_attachment",
+        )
+        records = response.json()
+        return records[0] if records else None
+
+    async def delete_draft_fault_report_attachment(
+        self,
+        workspace_id: str,
+        report_id: str,
+        attachment_id: str,
+        user_id: str,
+    ) -> dict[str, Any] | None:
+        response = await self._request(
+            "POST",
+            "/rest/v1/rpc/delete_draft_fault_report_attachment",
+            key=self.secret_key,
+            json={
+                "target_workspace_id": workspace_id,
+                "target_report_id": report_id,
+                "target_attachment_id": attachment_id,
+                "target_user_id": user_id,
+            },
+            operation="delete_draft_fault_report_attachment",
         )
         records = response.json()
         return records[0] if records else None
@@ -834,6 +949,71 @@ class SupabaseGateway:
             "create_document_signed_url",
             "invalid_response",
             "Supabase returned an invalid signed document URL",
+        )
+
+    async def upload_fault_report_attachment_file(
+        self,
+        storage_path: str,
+        content_type: str,
+        content: bytes,
+    ) -> None:
+        encoded_path = quote(storage_path, safe="/")
+        await self._request(
+            "POST",
+            f"/storage/v1/object/{self.fault_report_attachment_bucket}/{encoded_path}",
+            key=self.secret_key,
+            content=content,
+            headers={"Content-Type": content_type, "x-upsert": "false"},
+            operation="upload_fault_report_attachment_file",
+        )
+
+    async def remove_fault_report_attachment_file(self, storage_path: str) -> None:
+        encoded_path = quote(storage_path, safe="/")
+        await self._request(
+            "DELETE",
+            f"/storage/v1/object/{self.fault_report_attachment_bucket}/{encoded_path}",
+            key=self.secret_key,
+            operation="remove_fault_report_attachment_file",
+        )
+
+    async def create_fault_report_attachment_signed_url(
+        self,
+        storage_path: str,
+        *,
+        expires_in: int,
+    ) -> str:
+        encoded_path = quote(storage_path, safe="/")
+        response = await self._request(
+            "POST",
+            (
+                "/storage/v1/object/sign/"
+                f"{self.fault_report_attachment_bucket}/{encoded_path}"
+            ),
+            key=self.secret_key,
+            json={"expiresIn": expires_in},
+            operation="create_fault_report_attachment_signed_url",
+        )
+        payload = response.json()
+        signed_path = payload.get("signedURL") or payload.get("signedUrl")
+        if not isinstance(signed_path, str) or not signed_path:
+            raise SupabaseRequestError(
+                502,
+                "create_fault_report_attachment_signed_url",
+                "invalid_response",
+                "Supabase did not return a signed attachment URL",
+            )
+        if signed_path.startswith("/storage/v1/"):
+            return f"{self.url}{signed_path}"
+        if signed_path.startswith("/object/"):
+            return f"{self.url}/storage/v1{signed_path}"
+        parsed = urlparse(signed_path)
+        if parsed.scheme in {"http", "https"} and parsed.netloc == urlparse(self.url).netloc:
+            return signed_path
+        raise SupabaseRequestError(
+            502,
+            "create_fault_report_attachment_signed_url",
+            "invalid_response",
+            "Supabase returned an invalid signed attachment URL",
         )
 
     async def _request(

@@ -60,4 +60,4 @@ Every route verifies the Supabase access token and workspace membership. The API
 
 ## Related milestones
 
-Fault intake and the Safety Gate are followed by [grounded evidence retrieval](evidence-retrieval.md), [evidence-grounded guidance](guidance-plan.md), and [Work Log and Fault Resolution](work-log-resolution.md). Photo intake, OCR, repair branching, and audited case reopening are not implemented.
+Fault intake and the Safety Gate are followed by [grounded evidence retrieval](evidence-retrieval.md), [evidence-grounded guidance](guidance-plan.md), [private fault-report photo attachments](fault-report-photo-attachments.md), and [Work Log and Fault Resolution](work-log-resolution.md). Photo analysis, OCR, repair branching, and audited case reopening are not implemented.

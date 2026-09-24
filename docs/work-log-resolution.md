@@ -24,7 +24,7 @@ Existing fault reports and workspaces remain unchanged. The migration does not w
 
 ## API routes
 
-- `GET /workspaces/{workspace_id}/fault-reports/{report_id}/work-logs` — the owning technician or an administrator in the same workspace can read the chronological log.
+- `GET /workspaces/{workspace_id}/fault-reports/{report_id}/work-logs` — the owning technician or an administrator in the same workspace can read an Active report log. Current workspace members can read the log after the report is Resolved.
 - `POST /workspaces/{workspace_id}/fault-reports/{report_id}/work-logs` — the owning technician can add an observation, action taken, measurement, or escalation to an Active report.
 - `POST /workspaces/{workspace_id}/fault-reports/{report_id}/resolve` — the owning technician can close an Active report with a required resolution summary.
 
@@ -64,5 +64,5 @@ npm run build:web
 
 - Work-log entries are plain text; measurements do not yet have unit-specific structured fields.
 - Resolution closes the report permanently in this prototype. Reopening requires a separately designed audited workflow.
-- There is no attachment or photo support in the work log.
-- Resolved reports remain case records and are not yet converted into a reusable historical-case retrieval source.
+- Photos can be attached to the report through [Private Fault Report Photo Attachments](fault-report-photo-attachments.md), but individual work-log entries do not have separate attachments.
+- Resolved reports are available through the read-only [Resolved Case History and Quick Recall](resolved-case-history.md) flow.

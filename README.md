@@ -11,7 +11,7 @@ supabase/migrations/  PostgreSQL schema and row-level security
 .vscode/              Shared editor settings
 ```
 
-The working prototype supports email/password sign-in, invitation password setup, workspace-scoped admin and technician dashboards, equipment management, a private approved PDF library, lexical evidence retrieval with page citations, evidence-grounded Gemini guidance, fault intake with a required Safety Gate, and append-only work logs with technician-controlled resolution. Administrators can review workspace reports and technician activity but cannot change them. OCR, photo analysis, embeddings, and LangGraph remain later integrations.
+The working prototype supports email/password sign-in, invitation password setup, workspace-scoped admin and technician dashboards, equipment management, a private approved PDF library, lexical evidence retrieval with page citations, evidence-grounded Gemini guidance, fault intake with a required Safety Gate, private report photo attachments, append-only work logs with technician-controlled resolution, and searchable read-only resolved case history with equipment Quick Recall. Administrators can review workspace reports and technician activity but cannot change them. OCR, photo analysis, embeddings, and LangGraph remain later integrations.
 
 ## Local setup
 
@@ -30,7 +30,7 @@ Supabase Auth owns sign-in identities. A profile is created for each new Auth us
 
 For the first workspace, follow [First test admin setup](docs/first-admin-setup.md). Then follow [Admin invitations setup](docs/admin-invitations-setup.md) before using Team / Access. Keep the Supabase secret key in the API environment only. Disable public signups in the Supabase Auth project settings before using the app with real accounts.
 
-Feature setup and demo flows are documented separately, including [Work Log and Fault Resolution](docs/work-log-resolution.md). Apply each pending Supabase migration manually in timestamp order before testing the corresponding feature.
+Feature setup and demo flows are documented separately, including [Work Log and Fault Resolution](docs/work-log-resolution.md), [Resolved Case History and Quick Recall](docs/resolved-case-history.md), and [Private Fault Report Photo Attachments](docs/fault-report-photo-attachments.md). Apply each pending Supabase migration manually in timestamp order before testing the corresponding feature.
 
 The initial migration enables RLS and explicit client grants on every application table. Technicians can read workspace equipment and approved documents, and can save cases under their own identity. Shared cases are visible to other workspace members; private cases remain visible to their author and admins. Admins manage equipment and document metadata. Source files live in a private Supabase Storage bucket. The migration enables pgvector, while the embedding table and dimensions wait for the retrieval design.
 

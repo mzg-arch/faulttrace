@@ -83,5 +83,5 @@ An administrator can approve and index better source material, after which the r
 - Gemini sees at most eight approved chunks for a generation.
 - Citation-ID validation proves source membership; semantic entailment still depends on the model and technician review of the cited original.
 - Scanned PDFs require future OCR, and complex layouts depend on embedded PDF reading order.
-- There is no photo analysis, external search, embeddings, LangGraph workflow, repair branching, work log, or resolved-case promotion.
+- Report photos are excluded from Gemini input. There is no photo analysis, external search, embeddings, LangGraph workflow, or repair branching.
 - The current UI displays the latest plan and does not yet provide plan-version history.

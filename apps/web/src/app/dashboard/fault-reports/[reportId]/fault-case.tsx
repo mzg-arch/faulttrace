@@ -8,6 +8,7 @@ import {
   formatReportDate,
   type CitedStatement,
   type EvidenceRetrievalResponse,
+  type FaultReportAttachment,
   type FaultReport,
   type GuidancePlan,
   type WorkLogEntry,
@@ -58,6 +59,225 @@ function ReportDetails({ report }: { report: FaultReport }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+function formatFileSize(sizeBytes: number) {
+  if (sizeBytes < 1024) return `${sizeBytes} B`;
+  if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)} KB`;
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function AttachedPhotosSection({
+  report,
+  role,
+  workspaceId,
+}: {
+  report: FaultReport;
+  role: "admin" | "technician";
+  workspaceId: string;
+}) {
+  const [attachments, setAttachments] = useState<FaultReportAttachment[]>([]);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [activeAttachmentId, setActiveAttachmentId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const attachmentBaseUrl = useMemo(
+    () => `${API_ORIGIN}/workspaces/${workspaceId}/fault-reports/${report.id}/attachments`,
+    [report.id, workspaceId],
+  );
+  const canUpload = role === "technician" && report.status !== "resolved";
+
+  const requestSignedUrl = useCallback(async (attachmentId: string) => {
+    const response = await authenticatedFetch(`${attachmentBaseUrl}/${attachmentId}/access`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(await apiErrorMessage(response, "The private photo could not be opened."));
+    }
+    return (await response.json()) as { url: string; expires_in: number; file_name: string };
+  }, [attachmentBaseUrl]);
+
+  const loadAttachments = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await authenticatedFetch(attachmentBaseUrl);
+      if (!response.ok) {
+        throw new Error(await apiErrorMessage(response, "Attached photos could not be loaded."));
+      }
+      const records = (await response.json()) as FaultReportAttachment[];
+      const signedResults = await Promise.allSettled(
+        records.map(async (attachment) => ({
+          attachmentId: attachment.id,
+          access: await requestSignedUrl(attachment.id),
+        })),
+      );
+      const nextUrls: Record<string, string> = {};
+      signedResults.forEach((result) => {
+        if (result.status === "fulfilled") {
+          nextUrls[result.value.attachmentId] = result.value.access.url;
+        }
+      });
+      setAttachments(records);
+      setPhotoUrls(nextUrls);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Attached photos could not be loaded.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [attachmentBaseUrl, requestSignedUrl]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadAttachments(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadAttachments]);
+
+  async function uploadPhoto() {
+    if (!selectedFile || !canUpload || isUploading) return;
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      setError("Fault-report photos must be 10 MB or smaller.");
+      return;
+    }
+    setIsUploading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      const response = await authenticatedFetch(attachmentBaseUrl, {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) {
+        throw new Error(await apiErrorMessage(response, "The photo could not be uploaded."));
+      }
+      setSelectedFile(null);
+      setFileInputKey((value) => value + 1);
+      setSuccess("Photo attached to this fault report.");
+      await loadAttachments();
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "The photo could not be uploaded.");
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  async function openPhoto(attachment: FaultReportAttachment) {
+    if (activeAttachmentId) return;
+    const photoWindow = window.open("about:blank", "_blank");
+    if (photoWindow) photoWindow.opener = null;
+    setActiveAttachmentId(attachment.id);
+    setError(null);
+    try {
+      const access = await requestSignedUrl(attachment.id);
+      setPhotoUrls((current) => ({ ...current, [attachment.id]: access.url }));
+      if (photoWindow) {
+        photoWindow.location.replace(access.url);
+      } else {
+        setError("Allow pop-ups for FaultTrace, then choose Open again.");
+      }
+    } catch (openError) {
+      photoWindow?.close();
+      setError(openError instanceof Error ? openError.message : "The private photo could not be opened.");
+    } finally {
+      setActiveAttachmentId(null);
+    }
+  }
+
+  async function deletePhoto(attachment: FaultReportAttachment) {
+    if (!attachment.can_delete || activeAttachmentId) return;
+    if (!window.confirm(`Delete ${attachment.file_name} from this Draft report?`)) return;
+    setActiveAttachmentId(attachment.id);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await authenticatedFetch(`${attachmentBaseUrl}/${attachment.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        throw new Error(await apiErrorMessage(response, "The photo could not be deleted."));
+      }
+      setAttachments((current) => current.filter((item) => item.id !== attachment.id));
+      setPhotoUrls((current) => {
+        const next = { ...current };
+        delete next[attachment.id];
+        return next;
+      });
+      setSuccess("Draft photo deleted.");
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "The photo could not be deleted.");
+    } finally {
+      setActiveAttachmentId(null);
+    }
+  }
+
+  return (
+    <section className="rounded-3xl border border-sky-300/15 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="attached-photos-title">
+      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-6">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-300">Private report media</p>
+          <h2 id="attached-photos-title" className="mt-2 text-2xl font-semibold text-white">Attached photos</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Photos support reporting only and do not replace approved inspection procedures.</p>
+        </div>
+        <span className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-300">JPEG, PNG, WebP · 10 MB max</span>
+      </div>
+
+      {role === "admin" && <p className="mt-5 rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-4 py-3 text-sm text-cyan-100">Read-only administrator view. Photo upload and deletion remain technician actions.</p>}
+      {role === "technician" && report.status === "resolved" && <p className="mt-5 rounded-xl border border-violet-300/15 bg-violet-300/5 px-4 py-3 text-sm text-violet-100">Resolved report photos are read-only and cannot be changed or deleted.</p>}
+
+      {canUpload && (
+        <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-sky-300/15 bg-[#091522] p-5 sm:flex-row sm:items-end">
+          <label className="min-w-0 flex-1 text-sm font-medium text-slate-200">
+            Add a report photo
+            <input
+              key={fileInputKey}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+              onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+              disabled={isUploading}
+              className="mt-2 block w-full rounded-xl border border-white/10 bg-[#07111c] px-3 py-2.5 text-sm text-slate-300 file:mr-4 file:rounded-lg file:border-0 file:bg-sky-300 file:px-3 file:py-2 file:font-semibold file:text-[#07111c]"
+            />
+          </label>
+          <button type="button" onClick={() => void uploadPhoto()} disabled={!selectedFile || isUploading} className="rounded-xl bg-sky-300 px-5 py-3 text-sm font-bold text-[#07111c] hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-40">{isUploading ? "Uploading photo..." : "Attach photo"}</button>
+        </div>
+      )}
+
+      {error && <div role="alert" className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/5 p-4 text-sm text-amber-100"><p>{error}</p><button type="button" onClick={() => void loadAttachments()} className="mt-3 font-semibold text-cyan-200 hover:text-cyan-100">Reload photos</button></div>}
+      {success && <p role="status" className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/5 px-4 py-3 text-sm text-emerald-100">{success}</p>}
+      {isLoading && <p role="status" className="mt-5 rounded-xl border border-white/10 p-5 text-sm text-slate-400">Loading private report photos...</p>}
+      {!isLoading && !error && attachments.length === 0 && <div className="mt-5 rounded-2xl border border-dashed border-white/15 bg-[#091522]/60 p-6 text-center"><p className="font-medium text-slate-200">No photos are attached to this report.</p><p className="mt-2 text-sm text-slate-500">{canUpload ? "Attach a clear reporting photo if it supports the case record." : "Technician photos will appear here when available."}</p></div>}
+      {!isLoading && attachments.length > 0 && (
+        <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {attachments.map((attachment) => (
+            <li key={attachment.id} className="overflow-hidden rounded-2xl border border-white/10 bg-[#091522]">
+              <div className="aspect-[4/3] bg-[#07111c]">
+                {photoUrls[attachment.id] ? (
+                  // Signed private object URLs are intentionally rendered without Next image optimization.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photoUrls[attachment.id]} alt={`Attached fault report photo ${attachment.file_name}`} className="size-full object-cover" />
+                ) : (
+                  <div className="flex size-full items-center justify-center px-5 text-center text-sm text-slate-500">Preview link unavailable. Use Open to retry.</div>
+                )}
+              </div>
+              <div className="p-4">
+                <p className="truncate text-sm font-semibold text-white" title={attachment.file_name}>{attachment.file_name}</p>
+                <p className="mt-1 text-xs text-slate-500">{formatFileSize(attachment.size_bytes)} · {formatReportDate(attachment.created_at)}</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => void openPhoto(attachment)} disabled={activeAttachmentId === attachment.id} className="rounded-lg border border-sky-300/25 px-3 py-2 text-xs font-semibold text-sky-100 hover:border-sky-300/60 disabled:opacity-50">{activeAttachmentId === attachment.id ? "Opening..." : "Open"}</button>
+                  {attachment.can_delete && <button type="button" onClick={() => void deletePhoto(attachment)} disabled={activeAttachmentId === attachment.id} className="rounded-lg border border-red-300/20 px-3 py-2 text-xs font-semibold text-red-100 hover:border-red-300/50 disabled:opacity-50">Delete</button>}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
@@ -178,10 +398,12 @@ function GuidancePlanSection({
   workspaceId,
   reportId,
   role,
+  canGenerate,
 }: {
   workspaceId: string;
   reportId: string;
   role: "admin" | "technician";
+  canGenerate: boolean;
 }) {
   const [plan, setPlan] = useState<GuidancePlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -216,7 +438,7 @@ function GuidancePlanSection({
   }, [loadPlan]);
 
   async function generatePlan() {
-    if (role !== "technician" || isGenerating) return;
+    if (!canGenerate || isGenerating) return;
     setIsGenerating(true);
     setError(null);
     try {
@@ -241,18 +463,18 @@ function GuidancePlanSection({
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">Evidence-grounded plan</p>
           <h2 id="guidance-plan-title" className="mt-2 text-2xl font-semibold text-white">Safety brief and guided checks</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Generated only from the active report and server-retrieved approved PDF excerpts. Every grounded statement links to its exact evidence chunk.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Saved plans use only report context and server-retrieved approved PDF excerpts. Every grounded statement links to its exact evidence chunk.</p>
         </div>
-        {role === "technician" && (
+        {canGenerate && (
           <button type="button" onClick={() => void generatePlan()} disabled={isGenerating || isLoading} className="shrink-0 rounded-xl bg-violet-300 px-4 py-3 text-sm font-bold text-[#07111c] hover:bg-violet-200 disabled:cursor-wait disabled:opacity-60">{isGenerating ? "Validating grounded guidance..." : plan ? "Generate updated guidance" : "Generate evidence-grounded guidance"}</button>
         )}
       </div>
 
       <p className="mt-5 rounded-xl border border-amber-300/20 bg-amber-300/5 px-4 py-3 text-xs leading-6 text-amber-100/85">FaultTrace does not replace current site procedures, formal LOTO or isolation requirements, authorization, required PPE, emergency escalation, or qualified technician judgment. Stop and escalate whenever conditions are unsafe or uncertain.</p>
-      {role === "admin" && <p className="mt-4 rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-4 py-3 text-sm text-cyan-100">Read-only administrator view. Only the technician who owns this report can generate a plan.</p>}
+      {!canGenerate && <p className="mt-4 rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-4 py-3 text-sm text-cyan-100">Read-only saved plan. Guidance cannot be generated or changed from this case view.</p>}
       {isLoading && <p role="status" className="mt-6 rounded-xl border border-white/10 p-4 text-sm text-slate-400">Loading the latest saved guidance plan...</p>}
       {error && <div role="alert" className="mt-6 rounded-xl border border-amber-300/25 bg-amber-300/5 p-4 text-sm text-amber-100"><p>{error}</p><button type="button" onClick={() => void loadPlan()} className="mt-3 font-semibold text-cyan-200 hover:text-cyan-100">Retry loading saved plan</button></div>}
-      {!isLoading && !error && !plan && <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-[#091522]/60 p-6 text-center"><p className="font-medium text-slate-200">No saved guidance plan exists for this case.</p><p className="mt-2 text-sm leading-6 text-slate-500">{role === "technician" ? "Generate a plan after approved PDF evidence has been indexed." : "The report technician has not generated a plan yet."}</p></div>}
+      {!isLoading && !error && !plan && <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-[#091522]/60 p-6 text-center"><p className="font-medium text-slate-200">No saved guidance plan exists for this case.</p><p className="mt-2 text-sm leading-6 text-slate-500">{canGenerate ? "Generate a plan after approved PDF evidence has been indexed." : role === "admin" ? "The report technician did not save a plan for this case." : "No guidance plan was saved before this report was resolved."}</p></div>}
 
       {!isLoading && plan?.status === "insufficient_evidence" && (
         <div className="mt-6 rounded-2xl border border-amber-300/25 bg-amber-300/5 p-6">
@@ -536,6 +758,7 @@ function CaseWorkspace({
           <span className={isResolved ? "rounded-full border border-violet-300/25 bg-violet-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-violet-100" : "rounded-full border border-emerald-300/25 bg-emerald-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-emerald-200"}>{isResolved ? "Resolved" : "Active"}</span>
         </div>
         {role === "admin" && <p className="mt-5 rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-4 py-3 text-sm text-cyan-100">Read-only administrator view for this workspace report.</p>}
+        {isResolved && <p className="mt-5 rounded-xl border border-violet-300/20 bg-violet-300/5 px-4 py-3 text-sm leading-6 text-violet-100">Read-only resolved case. Its outcome, work log, citations, and saved guidance are preserved as recorded and cannot be edited, reopened, or deleted here.</p>}
         <div className="mt-7"><ReportDetails report={report} /></div>
       </section>
 
@@ -558,9 +781,11 @@ function CaseWorkspace({
         <p className="mt-5 text-xs leading-6 text-slate-500">These acknowledgements record the pre-task gate. They do not replace current site procedures, permits, formal LOTO or isolation requirements, or professional judgment. Historical cases and automated output never override current approved procedures.</p>
       </section>
 
+      <AttachedPhotosSection report={report} role={role} workspaceId={workspaceId} />
+
       {!isResolved && <ApprovedEvidence workspaceId={workspaceId} reportId={report.id} />}
 
-      {!isResolved && <GuidancePlanSection workspaceId={workspaceId} reportId={report.id} role={role} />}
+      <GuidancePlanSection workspaceId={workspaceId} reportId={report.id} role={role} canGenerate={role === "technician" && !isResolved} />
 
       <WorkLogSection report={report} role={role} workspaceId={workspaceId} onReportResolved={onReportResolved} />
     </div>
@@ -571,10 +796,12 @@ export function FaultCase({
   workspaceId,
   reportId,
   role,
+  resolvedHistory = false,
 }: {
   workspaceId: string;
   reportId: string;
   role: "admin" | "technician";
+  resolvedHistory?: boolean;
 }) {
   const [report, setReport] = useState<FaultReport | null>(null);
   const [acknowledgements, setAcknowledgements] = useState<SafetyState>(EMPTY_ACKNOWLEDGEMENTS);
@@ -587,7 +814,9 @@ export function FaultCase({
     setError(null);
     try {
       const response = await authenticatedFetch(
-        `${API_ORIGIN}/workspaces/${workspaceId}/fault-reports/${reportId}`,
+        resolvedHistory
+          ? `${API_ORIGIN}/workspaces/${workspaceId}/resolved-reports/${reportId}`
+          : `${API_ORIGIN}/workspaces/${workspaceId}/fault-reports/${reportId}`,
       );
       if (!response.ok) {
         throw new Error(await apiErrorMessage(response, "Fault report could not be loaded."));
@@ -598,7 +827,7 @@ export function FaultCase({
     } finally {
       setIsLoading(false);
     }
-  }, [reportId, workspaceId]);
+  }, [reportId, resolvedHistory, workspaceId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadReport(), 0);
@@ -656,59 +885,65 @@ export function FaultCase({
 
   if (role === "admin") {
     return (
-      <section className="rounded-3xl border border-amber-300/20 bg-[#101e2d]/95 p-6 sm:p-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">Read-only administrator view</p>
-            <h1 className="mt-3 text-3xl font-semibold text-white">Safety Gate pending</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">This technician report remains Draft. Only the technician who created it can complete the mandatory acknowledgements and activate the case.</p>
+      <div className="space-y-8">
+        <section className="rounded-3xl border border-amber-300/20 bg-[#101e2d]/95 p-6 sm:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">Read-only administrator view</p>
+              <h1 className="mt-3 text-3xl font-semibold text-white">Safety Gate pending</h1>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">This technician report remains Draft. Only the technician who created it can complete the mandatory acknowledgements and activate the case.</p>
+            </div>
+            <span className="rounded-full border border-amber-300/25 bg-amber-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-amber-100">Draft</span>
           </div>
-          <span className="rounded-full border border-amber-300/25 bg-amber-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-amber-100">Draft</span>
-        </div>
-        <div className="mt-7"><ReportDetails report={report} /></div>
-      </section>
+          <div className="mt-7"><ReportDetails report={report} /></div>
+        </section>
+        <AttachedPhotosSection report={report} role={role} workspaceId={workspaceId} />
+      </div>
     );
   }
 
   return (
-    <section className="rounded-3xl border border-amber-300/20 bg-[#101e2d]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:p-8">
-      <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-6">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">Mandatory pre-task gate</p>
-          <h1 className="mt-3 text-3xl font-semibold text-white">Safety Gate</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">Review the fault intake and personally complete every acknowledgement before beginning the case.</p>
+    <div className="space-y-8">
+      <section className="rounded-3xl border border-amber-300/20 bg-[#101e2d]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">Mandatory pre-task gate</p>
+            <h1 className="mt-3 text-3xl font-semibold text-white">Safety Gate</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">Review the fault intake and personally complete every acknowledgement before beginning the case.</p>
+          </div>
+          <span className="rounded-full border border-amber-300/25 bg-amber-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-amber-100">Draft</span>
         </div>
-        <span className="rounded-full border border-amber-300/25 bg-amber-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-amber-100">Draft</span>
-      </div>
 
-      <div className="mt-7"><ReportDetails report={report} /></div>
+        <div className="mt-7"><ReportDetails report={report} /></div>
 
-      <div className="mt-8 rounded-2xl border border-red-300/20 bg-red-300/5 p-5">
-        <h2 className="font-semibold text-red-100">Site procedures remain controlling</h2>
-        <p className="mt-2 text-sm leading-7 text-red-100/80">This Safety Gate records your acknowledgement. It is not a replacement for current site procedures, work permits, authorization requirements, formal LOTO or isolation procedures, hazard assessments, PPE requirements, or professional judgment. Historical cases and automated output never override current approved procedures. Stop and escalate whenever conditions are unsafe or uncertain.</p>
-      </div>
+        <div className="mt-8 rounded-2xl border border-red-300/20 bg-red-300/5 p-5">
+          <h2 className="font-semibold text-red-100">Site procedures remain controlling</h2>
+          <p className="mt-2 text-sm leading-7 text-red-100/80">This Safety Gate records your acknowledgement. It is not a replacement for current site procedures, work permits, authorization requirements, formal LOTO or isolation procedures, hazard assessments, PPE requirements, or professional judgment. Historical cases and automated output never override current approved procedures. Stop and escalate whenever conditions are unsafe or uncertain.</p>
+        </div>
 
-      <fieldset className="mt-7 space-y-3">
-        <legend className="mb-4 text-lg font-semibold text-white">Required acknowledgements</legend>
-        {SAFETY_ACKNOWLEDGEMENTS.map((item) => (
-          <label key={item.key} className="flex cursor-pointer gap-4 rounded-2xl border border-white/10 bg-[#091522] p-5 transition hover:border-cyan-300/30">
-            <input
-              type="checkbox"
-              checked={acknowledgements[item.key]}
-              onChange={(event) => setAcknowledgements((current) => ({ ...current, [item.key]: event.target.checked }))}
-              disabled={isActivating}
-              className="mt-1 size-5 shrink-0 accent-cyan-300"
-            />
-            <span className="text-sm leading-7 text-slate-200">{item.label}</span>
-          </label>
-        ))}
-      </fieldset>
+        <fieldset className="mt-7 space-y-3">
+          <legend className="mb-4 text-lg font-semibold text-white">Required acknowledgements</legend>
+          {SAFETY_ACKNOWLEDGEMENTS.map((item) => (
+            <label key={item.key} className="flex cursor-pointer gap-4 rounded-2xl border border-white/10 bg-[#091522] p-5 transition hover:border-cyan-300/30">
+              <input
+                type="checkbox"
+                checked={acknowledgements[item.key]}
+                onChange={(event) => setAcknowledgements((current) => ({ ...current, [item.key]: event.target.checked }))}
+                disabled={isActivating}
+                className="mt-1 size-5 shrink-0 accent-cyan-300"
+              />
+              <span className="text-sm leading-7 text-slate-200">{item.label}</span>
+            </label>
+          ))}
+        </fieldset>
 
-      {error && <p role="alert" className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/5 px-4 py-3 text-sm text-amber-100">{error}</p>}
-      <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
-        <p className="text-xs text-slate-500">All four acknowledgements are required to change this report from Draft to Active.</p>
-        <button type="button" onClick={() => void activateCase()} disabled={!allAcknowledged || isActivating} className="rounded-xl bg-cyan-300 px-5 py-3 text-sm font-bold text-[#07111c] hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">{isActivating ? "Activating case..." : "Acknowledge and begin case"}</button>
-      </div>
-    </section>
+        {error && <p role="alert" className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/5 px-4 py-3 text-sm text-amber-100">{error}</p>}
+        <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
+          <p className="text-xs text-slate-500">All four acknowledgements are required to change this report from Draft to Active.</p>
+          <button type="button" onClick={() => void activateCase()} disabled={!allAcknowledged || isActivating} className="rounded-xl bg-cyan-300 px-5 py-3 text-sm font-bold text-[#07111c] hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">{isActivating ? "Activating case..." : "Acknowledge and begin case"}</button>
+        </div>
+      </section>
+      <AttachedPhotosSection report={report} role={role} workspaceId={workspaceId} />
+    </div>
   );
 }

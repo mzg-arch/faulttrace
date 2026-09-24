@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 import { API_ORIGIN, apiErrorMessage, authenticatedFetch } from "@/lib/faulttrace-api";
-import type { ActiveEquipment, FaultReport } from "../../fault-report-types";
+import {
+  formatReportDate,
+  type ActiveEquipment,
+  type FaultReport,
+  type ResolvedReportSummary,
+} from "../../fault-report-types";
 
 const fieldClass =
   "mt-2 w-full rounded-xl border border-white/15 bg-[#07111c] px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300 disabled:opacity-60";
@@ -27,6 +32,10 @@ export function FaultIntakeForm({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [createdReport, setCreatedReport] = useState<FaultReport | null>(null);
+  const [previousCases, setPreviousCases] = useState<ResolvedReportSummary[]>([]);
+  const [isLoadingPreviousCases, setIsLoadingPreviousCases] = useState(false);
+  const [previousCasesError, setPreviousCasesError] = useState<string | null>(null);
+  const [previousCasesRefresh, setPreviousCasesRefresh] = useState(0);
 
   const loadEquipment = useCallback(async () => {
     setIsLoading(true);
@@ -52,6 +61,48 @@ export function FaultIntakeForm({
     const timer = window.setTimeout(() => void loadEquipment(), 0);
     return () => window.clearTimeout(timer);
   }, [loadEquipment]);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      if (!equipmentId) {
+        if (active) {
+          setPreviousCases([]);
+          setPreviousCasesError(null);
+          setIsLoadingPreviousCases(false);
+        }
+        return;
+      }
+
+      setIsLoadingPreviousCases(true);
+      setPreviousCasesError(null);
+      try {
+        const parameters = new URLSearchParams({
+          equipment_id: equipmentId,
+          limit: "3",
+        });
+        const response = await authenticatedFetch(
+          `${API_ORIGIN}/workspaces/${workspaceId}/resolved-reports?${parameters.toString()}`,
+        );
+        if (!response.ok) {
+          throw new Error(await apiErrorMessage(response, "Previous resolved cases could not be loaded."));
+        }
+        if (active) setPreviousCases((await response.json()) as ResolvedReportSummary[]);
+      } catch (error) {
+        if (active) {
+          setPreviousCases([]);
+          setPreviousCasesError(error instanceof Error ? error.message : "Previous resolved cases could not be loaded.");
+        }
+      } finally {
+        if (active) setIsLoadingPreviousCases(false);
+      }
+    }, 0);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [equipmentId, previousCasesRefresh, workspaceId]);
 
   async function submitReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -139,6 +190,42 @@ export function FaultIntakeForm({
             ))}
           </select>
         </label>
+        {equipmentId && (
+          <section className="rounded-2xl border border-violet-300/15 bg-violet-300/5 p-5 md:col-span-2" aria-labelledby="previous-resolved-title">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-violet-200">Quick recall</p>
+                <h2 id="previous-resolved-title" className="mt-2 text-lg font-semibold text-white">Previous resolved cases for this equipment</h2>
+              </div>
+              <Link href="/dashboard/resolved-history" className="text-sm font-semibold text-cyan-200 hover:text-cyan-100">Browse history</Link>
+            </div>
+            {isLoadingPreviousCases && <p role="status" className="mt-4 text-sm text-slate-400">Loading previous resolved cases...</p>}
+            {previousCasesError && (
+              <div role="alert" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/5 p-4 text-sm text-amber-100">
+                <p>{previousCasesError}</p>
+                <button type="button" onClick={() => setPreviousCasesRefresh((value) => value + 1)} className="mt-2 font-semibold text-cyan-200 hover:text-cyan-100">Try again</button>
+              </div>
+            )}
+            {!isLoadingPreviousCases && !previousCasesError && previousCases.length === 0 && <p className="mt-4 rounded-xl border border-dashed border-white/10 p-4 text-sm text-slate-400">No resolved cases are recorded for this equipment.</p>}
+            {!isLoadingPreviousCases && !previousCasesError && previousCases.length > 0 && (
+              <ul className="mt-4 grid gap-3 lg:grid-cols-3">
+                {previousCases.map((report) => (
+                  <li key={report.id}>
+                    <Link href={`/dashboard/resolved-history/${report.id}`} className="block h-full rounded-xl border border-white/10 bg-[#091522] p-4 transition hover:border-violet-300/35">
+                      <div className="flex items-center justify-between gap-3 text-xs">
+                        <span className="font-semibold text-violet-100">{report.fault_code || "No fault code"}</span>
+                        <span className="text-slate-500">{formatReportDate(report.resolved_at)}</span>
+                      </div>
+                      <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-300">{report.symptom}</p>
+                      <p className="mt-3 line-clamp-3 border-t border-white/10 pt-3 text-xs leading-5 text-slate-400">Outcome: {report.resolution_summary}</p>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-4 text-xs leading-6 text-amber-100/70">Historical outcomes are reference only. Follow current approved evidence, site procedures, LOTO, authorization, and professional judgment for this report.</p>
+          </section>
+        )}
         <label className="block text-sm font-medium text-slate-300">
           Fault code <span className="font-normal text-slate-500">(optional)</span>
           <input value={faultCode} onChange={(event) => setFaultCode(event.target.value)} disabled={isSaving} maxLength={120} className={fieldClass} placeholder="Example: F0001" />

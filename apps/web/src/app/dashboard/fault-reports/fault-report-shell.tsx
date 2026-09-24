@@ -7,10 +7,12 @@ import { SignOutButton } from "../sign-out-button";
 export function FaultReportShell({
   email,
   workspaceName,
+  sectionLabel = "Fault report",
   children,
 }: {
   email: string;
   workspaceName: string;
+  sectionLabel?: string;
   children: ReactNode;
 }) {
   return (
@@ -32,7 +34,7 @@ export function FaultReportShell({
           <span aria-hidden="true" className="text-slate-600">/</span>
           <span className="text-slate-400">{workspaceName}</span>
           <span aria-hidden="true" className="text-slate-600">/</span>
-          <span className="text-slate-300">Fault report</span>
+          <span className="text-slate-300">{sectionLabel}</span>
         </nav>
         {children}
         <p className="my-10 border-t border-white/10 pt-6 text-sm leading-7 text-slate-400">

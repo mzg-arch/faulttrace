@@ -18,8 +18,10 @@ from app.routers.fault_reports import (
     create_fault_report,
     create_fault_report_work_log,
     get_fault_report,
+    get_resolved_fault_report,
     list_fault_reports,
     list_fault_report_work_logs,
+    list_resolved_fault_reports,
     resolve_fault_report,
 )
 from app.settings import Settings
@@ -79,6 +81,8 @@ class FakeFaultReportGateway:
         self.created_work_log: tuple[str, str, str, str, str] | None = None
         self.resolution_scope: tuple[str, str, str, str] | None = None
         self.work_logs: list[dict[str, object]] = []
+        self.resolved_search_scope: tuple[str, str | None, str | None, int] | None = None
+        self.resolved_records: list[dict[str, object]] = []
         self.current_record: dict[str, object] | None = report_record()
         self.equipment_record: dict[str, object] | None = {
             "id": str(EQUIPMENT_ID),
@@ -96,6 +100,22 @@ class FakeFaultReportGateway:
         self.list_workspace_id = _workspace_id
         self.list_created_by = created_by
         return [report_record()]
+
+    async def search_resolved_fault_reports(
+        self,
+        workspace_id: str,
+        *,
+        equipment_id: str | None,
+        search_text: str | None,
+        limit: int,
+    ) -> list[dict[str, object]]:
+        self.resolved_search_scope = (
+            workspace_id,
+            equipment_id,
+            search_text,
+            limit,
+        )
+        return self.resolved_records
 
     async def list_equipment(
         self,
@@ -486,8 +506,143 @@ class FaultReportEndpointTests(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 403)
 
 
+class ResolvedHistoryEndpointTests(unittest.TestCase):
+    def test_history_filters_are_workspace_scoped_and_enriched(self) -> None:
+        gateway = FakeFaultReportGateway()
+        gateway.resolved_records = [
+            report_record(
+                status="resolved",
+                resolved_at="2026-09-22T15:00:00Z",
+                resolved_by_user_id=TECHNICIAN_ID,
+                resolution_summary="Replaced the damaged control fuse.",
+            )
+        ]
+        authorization = AsyncMock(
+            return_value=(gateway, {"id": "admin-id"}, "admin")
+        )
+
+        with patch("app.routers.fault_reports.authorized_workspace_member", authorization):
+            results = asyncio.run(
+                list_resolved_fault_reports(
+                    WORKSPACE_ID,
+                    "token",
+                    test_settings(),
+                    EQUIPMENT_ID,
+                    "  control   fuse  ",
+                    25,
+                )
+            )
+
+        self.assertEqual(
+            gateway.resolved_search_scope,
+            (
+                str(WORKSPACE_ID),
+                str(EQUIPMENT_ID),
+                "control fuse",
+                25,
+            ),
+        )
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].equipment_name, "ACS580 Drive")
+        self.assertEqual(results[0].report_owner, "Demo Technician")
+        self.assertEqual(
+            results[0].resolution_summary,
+            "Replaced the damaged control fuse.",
+        )
+
+    def test_technician_can_list_workspace_resolved_history(self) -> None:
+        gateway = FakeFaultReportGateway()
+        gateway.resolved_records = [
+            report_record(
+                created_by="77777777-7777-7777-7777-777777777777",
+                status="resolved",
+                resolved_at="2026-09-22T15:00:00Z",
+                resolved_by_user_id="77777777-7777-7777-7777-777777777777",
+                resolution_summary="Verified the approved reset sequence.",
+            )
+        ]
+        authorization = AsyncMock(
+            return_value=(gateway, {"id": TECHNICIAN_ID}, "technician")
+        )
+
+        with patch("app.routers.fault_reports.authorized_workspace_member", authorization):
+            results = asyncio.run(
+                list_resolved_fault_reports(
+                    WORKSPACE_ID,
+                    "token",
+                    test_settings(),
+                    None,
+                    None,
+                    3,
+                )
+            )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(gateway.resolved_search_scope[0], str(WORKSPACE_ID))
+
+    def test_resolved_detail_rejects_cross_workspace_or_active_report(self) -> None:
+        gateway = FakeFaultReportGateway()
+        authorization = AsyncMock(
+            return_value=(gateway, {"id": TECHNICIAN_ID}, "technician")
+        )
+
+        gateway.current_record = None
+        with patch("app.routers.fault_reports.authorized_workspace_member", authorization):
+            with self.assertRaises(HTTPException) as missing_context:
+                asyncio.run(
+                    get_resolved_fault_report(
+                        OTHER_WORKSPACE_ID,
+                        REPORT_ID,
+                        "token",
+                        test_settings(),
+                    )
+                )
+
+        self.assertEqual(missing_context.exception.status_code, 404)
+        self.assertEqual(gateway.get_scope[0], str(OTHER_WORKSPACE_ID))
+
+        gateway.current_record = report_record(status="active")
+        with patch("app.routers.fault_reports.authorized_workspace_member", authorization):
+            with self.assertRaises(HTTPException) as active_context:
+                asyncio.run(
+                    get_resolved_fault_report(
+                        WORKSPACE_ID,
+                        REPORT_ID,
+                        "token",
+                        test_settings(),
+                    )
+                )
+
+        self.assertEqual(active_context.exception.status_code, 404)
+
+    def test_resolved_detail_is_readable_by_workspace_technician(self) -> None:
+        gateway = FakeFaultReportGateway()
+        gateway.current_record = report_record(
+            status="resolved",
+            resolved_at="2026-09-22T15:00:00Z",
+            resolved_by_user_id=TECHNICIAN_ID,
+            resolution_summary="Restored operation after the approved inspection.",
+        )
+        authorization = AsyncMock(
+            return_value=(gateway, {"id": "another-technician"}, "technician")
+        )
+
+        with patch("app.routers.fault_reports.authorized_workspace_member", authorization):
+            result = asyncio.run(
+                get_resolved_fault_report(
+                    WORKSPACE_ID,
+                    REPORT_ID,
+                    "token",
+                    test_settings(),
+                )
+            )
+
+        self.assertEqual(result.status, "resolved")
+        self.assertEqual(gateway.get_scope[2], None)
+
+
 class WorkLogEndpointTests(unittest.TestCase):
-    def test_technician_work_log_read_is_scoped_to_own_workspace_report(self) -> None:
+    def test_technician_work_log_read_allows_owned_active_report(self) -> None:
         gateway = FakeFaultReportGateway()
         gateway.current_record = report_record(status="active")
         gateway.work_logs = [
@@ -516,13 +671,62 @@ class WorkLogEndpointTests(unittest.TestCase):
 
         self.assertEqual(
             gateway.get_scope,
-            (str(WORKSPACE_ID), str(REPORT_ID), TECHNICIAN_ID),
+            (str(WORKSPACE_ID), str(REPORT_ID), None),
         )
         self.assertEqual(
             gateway.work_log_scope,
             (str(WORKSPACE_ID), str(REPORT_ID)),
         )
         self.assertEqual(entries[0].author_name, "Demo Technician")
+
+    def test_technician_can_read_shared_resolved_log_but_not_shared_active_log(self) -> None:
+        gateway = FakeFaultReportGateway()
+        other_technician_id = "77777777-7777-7777-7777-777777777777"
+        gateway.current_record = report_record(
+            created_by=other_technician_id,
+            status="resolved",
+            resolved_at="2026-09-22T15:00:00Z",
+            resolved_by_user_id=other_technician_id,
+            resolution_summary="Verified the approved reset sequence.",
+        )
+        authorization = AsyncMock(
+            return_value=(gateway, {"id": TECHNICIAN_ID}, "technician")
+        )
+
+        with patch("app.routers.fault_reports.authorized_workspace_member", authorization):
+            entries = asyncio.run(
+                list_fault_report_work_logs(
+                    WORKSPACE_ID,
+                    REPORT_ID,
+                    "token",
+                    test_settings(),
+                )
+            )
+
+        self.assertEqual(entries, [])
+        self.assertEqual(
+            gateway.work_log_scope,
+            (str(WORKSPACE_ID), str(REPORT_ID)),
+        )
+
+        gateway.current_record = report_record(
+            created_by=other_technician_id,
+            status="active",
+        )
+        gateway.work_log_scope = None
+        with patch("app.routers.fault_reports.authorized_workspace_member", authorization):
+            with self.assertRaises(HTTPException) as context:
+                asyncio.run(
+                    list_fault_report_work_logs(
+                        WORKSPACE_ID,
+                        REPORT_ID,
+                        "token",
+                        test_settings(),
+                    )
+                )
+
+        self.assertEqual(context.exception.status_code, 404)
+        self.assertIsNone(gateway.work_log_scope)
 
     def test_admin_can_read_workspace_work_log_without_creator_filter(self) -> None:
         gateway = FakeFaultReportGateway()
