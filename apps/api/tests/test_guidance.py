@@ -1,6 +1,7 @@
 """Grounding, authorization, and persistence tests for guidance plans."""
 
 import asyncio
+import json
 import unittest
 from unittest.mock import AsyncMock, patch
 from uuid import UUID
@@ -10,6 +11,8 @@ from pydantic import SecretStr
 
 from app.gemini_guidance import (
     CitedStatement,
+    GEMINI_MAX_OUTPUT_TOKENS,
+    GEMINI_THINKING_LEVEL,
     GeminiGuidanceDraft,
     GeminiGuidanceError,
     GuidedCheckDraft,
@@ -216,10 +219,90 @@ class FakeGuidanceGateway:
 
 class GuidancePlanTests(unittest.TestCase):
     def test_provider_schema_omits_unsupported_additional_properties(self) -> None:
-        schema_text = str(_provider_response_schema())
+        schema = _provider_response_schema()
+        schema_text = str(schema)
 
         self.assertNotIn("additionalProperties", schema_text)
         self.assertIn("evidence_citation_ids", schema_text)
+        self.assertEqual(
+            set(schema["required"]),
+            {
+                "status",
+                "case_summary",
+                "safety_brief_items",
+                "guided_checks",
+                "escalation_criteria",
+                "evidence_citation_ids",
+            },
+        )
+
+    def test_valid_json_fallback_uses_typed_structured_output_config(self) -> None:
+        from google.genai import types as genai_types
+
+        response = unittest.mock.MagicMock()
+        response.parsed = None
+        response.text = json.dumps(grounded_draft().model_dump())
+        client = unittest.mock.MagicMock()
+        client.models.generate_content.return_value = response
+
+        with patch("google.genai.Client", return_value=client):
+            result = _generate_sync(
+                "test-api-key",
+                "gemini-3.8-flash",
+                {},
+                [{"chunk_id": 17, "excerpt": "Approved evidence"}],
+                report_id=str(REPORT_ID),
+            )
+
+        config = client.models.generate_content.call_args.kwargs["config"]
+        self.assertIsInstance(config, genai_types.GenerateContentConfig)
+        self.assertEqual(config.response_mime_type, "application/json")
+        self.assertIsInstance(config.response_schema, dict)
+        self.assertIn("evidence_citation_ids", str(config.response_schema))
+        self.assertEqual(config.max_output_tokens, GEMINI_MAX_OUTPUT_TOKENS)
+        self.assertEqual(
+            config.thinking_config.thinking_level.value.lower(),
+            GEMINI_THINKING_LEVEL,
+        )
+        self.assertEqual(result, grounded_draft())
+
+    def test_fenced_json_fallback_is_validated(self) -> None:
+        response = unittest.mock.MagicMock()
+        response.parsed = None
+        response.text = (
+            "```json\n"
+            + json.dumps(grounded_draft().model_dump())
+            + "\n```"
+        )
+        client = unittest.mock.MagicMock()
+        client.models.generate_content.return_value = response
+
+        with patch("google.genai.Client", return_value=client):
+            result = _generate_sync(
+                "test-api-key",
+                "gemini-3.8-flash",
+                {},
+                [{"chunk_id": 17, "excerpt": "Approved evidence"}],
+            )
+
+        self.assertEqual(result, grounded_draft())
+
+    def test_sdk_parsed_response_is_preferred_over_text(self) -> None:
+        response = unittest.mock.MagicMock()
+        response.parsed = grounded_draft()
+        response.text = "not valid json"
+        client = unittest.mock.MagicMock()
+        client.models.generate_content.return_value = response
+
+        with patch("google.genai.Client", return_value=client):
+            result = _generate_sync(
+                "test-api-key",
+                "gemini-3.8-flash",
+                {},
+                [{"chunk_id": 17, "excerpt": "Approved evidence"}],
+            )
+
+        self.assertEqual(result, grounded_draft())
 
     def test_client_error_logs_only_sanitized_provider_status_and_message(self) -> None:
         from google.genai import errors as genai_errors
@@ -243,16 +326,223 @@ class GuidancePlanTests(unittest.TestCase):
             self.assertLogs("faulttrace.gemini", level="WARNING") as logs,
             self.assertRaises(GeminiGuidanceError) as context,
         ):
-            _generate_sync(api_key, "invalid-model", {}, [])
+            _generate_sync(
+                api_key,
+                "invalid-model",
+                {},
+                [],
+                report_id=str(REPORT_ID),
+            )
 
         log_output = "\n".join(logs.output)
         self.assertEqual(context.exception.code, "provider_rejected")
         self.assertIn("provider_http_status=404", log_output)
-        self.assertIn("provider_message=Model was not found", log_output)
+        self.assertIn("exception_class=ClientError", log_output)
+        self.assertIn("exception_message=Model was not found", log_output)
+        self.assertIn("exception_repr=ClientError", log_output)
+        self.assertIn("model=invalid-model", log_output)
+        self.assertIn(f"report_id={REPORT_ID}", log_output)
+        self.assertIn("evidence_chunk_count=0", log_output)
         self.assertIn("[REDACTED]", log_output)
         self.assertNotIn(api_key, log_output)
         self.assertNotIn("must-not-be-logged", log_output)
         self.assertNotIn("\nCheck", log_output)
+
+    def test_server_error_logs_safe_provider_diagnostics_and_context(self) -> None:
+        from google.genai import errors as genai_errors
+
+        api_key = "secret-server-test-api-key"
+        bearer_token = "private-provider-bearer-token"
+        evidence_text = "Private ACS580 evidence text that must never enter a server log."
+        provider_error = genai_errors.ServerError(
+            503,
+            {
+                "error": {
+                    "code": 503,
+                    "message": (
+                        f"Service unavailable for {evidence_text} key={api_key} "
+                        f"Authorization: Bearer {bearer_token}"
+                    ),
+                    "status": "UNAVAILABLE",
+                    "details": {"provider_internal": "must-not-be-logged"},
+                }
+            },
+        )
+        client = unittest.mock.MagicMock()
+        client.models.generate_content.side_effect = provider_error
+
+        with (
+            patch("google.genai.Client", return_value=client),
+            patch("app.gemini_guidance.random.uniform", return_value=0.1),
+            patch("app.gemini_guidance.time.sleep") as sleep,
+            self.assertLogs("faulttrace.gemini", level="WARNING") as logs,
+            self.assertRaises(GeminiGuidanceError) as context,
+        ):
+            _generate_sync(
+                api_key,
+                "gemini-3.8-flash",
+                {"symptom": "Private reported symptom"},
+                [{"chunk_id": 17, "excerpt": evidence_text}],
+                report_id=str(REPORT_ID),
+            )
+
+        log_output = "\n".join(logs.output)
+        self.assertEqual(context.exception.code, "provider_busy")
+        self.assertEqual(client.models.generate_content.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+        self.assertAlmostEqual(sleep.call_args_list[0].args[0], 0.6)
+        self.assertAlmostEqual(sleep.call_args_list[1].args[0], 1.1)
+        self.assertIn("exception_class=ServerError", log_output)
+        self.assertIn("provider_http_status=503", log_output)
+        self.assertIn("UNAVAILABLE", log_output)
+        self.assertIn("model=gemini-3.8-flash", log_output)
+        self.assertIn(f"report_id={REPORT_ID}", log_output)
+        self.assertIn("evidence_chunk_count=1", log_output)
+        self.assertIn("[CONTENT REDACTED]", log_output)
+        self.assertNotIn(api_key, log_output)
+        self.assertNotIn(bearer_token, log_output)
+        self.assertNotIn(evidence_text, log_output)
+        self.assertNotIn("must-not-be-logged", log_output)
+
+    def test_429_and_503_retry_and_can_recover(self) -> None:
+        from google.genai import errors as genai_errors
+
+        for status_code, error_class in (
+            (429, genai_errors.ClientError),
+            (503, genai_errors.ServerError),
+        ):
+            with self.subTest(status_code=status_code):
+                provider_error = error_class(
+                    status_code,
+                    {
+                        "error": {
+                            "code": status_code,
+                            "message": "Provider is temporarily busy",
+                            "status": "RESOURCE_EXHAUSTED" if status_code == 429 else "UNAVAILABLE",
+                        }
+                    },
+                )
+                successful_response = unittest.mock.MagicMock()
+                successful_response.parsed = grounded_draft()
+                client = unittest.mock.MagicMock()
+                client.models.generate_content.side_effect = [
+                    provider_error,
+                    successful_response,
+                ]
+
+                with (
+                    patch("google.genai.Client", return_value=client),
+                    patch("app.gemini_guidance.random.uniform", return_value=0.05),
+                    patch("app.gemini_guidance.time.sleep") as sleep,
+                    self.assertLogs("faulttrace.gemini", level="WARNING") as logs,
+                ):
+                    result = _generate_sync(
+                        "test-api-key",
+                        "gemini-3.8-flash",
+                        {},
+                        [{"chunk_id": 17, "excerpt": "Approved evidence"}],
+                        report_id=str(REPORT_ID),
+                    )
+
+                self.assertEqual(result.status, "grounded")
+                self.assertEqual(client.models.generate_content.call_count, 2)
+                sleep.assert_called_once()
+                self.assertAlmostEqual(sleep.call_args.args[0], 0.55)
+                self.assertIn("attempt=1 retrying=True", "\n".join(logs.output))
+
+    def test_authentication_and_validation_errors_are_not_retried(self) -> None:
+        from google.genai import errors as genai_errors
+
+        for status_code in (400, 401, 403):
+            with self.subTest(status_code=status_code):
+                provider_error = genai_errors.ClientError(
+                    status_code,
+                    {
+                        "error": {
+                            "code": status_code,
+                            "message": "Request rejected",
+                            "status": "INVALID_ARGUMENT",
+                        }
+                    },
+                )
+                client = unittest.mock.MagicMock()
+                client.models.generate_content.side_effect = provider_error
+
+                with (
+                    patch("google.genai.Client", return_value=client),
+                    patch("app.gemini_guidance.time.sleep") as sleep,
+                    self.assertLogs("faulttrace.gemini", level="WARNING"),
+                    self.assertRaises(GeminiGuidanceError) as context,
+                ):
+                    _generate_sync("test-api-key", "gemini-3.8-flash", {}, [])
+
+                self.assertEqual(context.exception.code, "provider_rejected")
+                self.assertEqual(client.models.generate_content.call_count, 1)
+                sleep.assert_not_called()
+
+    def test_invalid_structured_response_is_not_retried(self) -> None:
+        response = unittest.mock.MagicMock()
+        response.parsed = None
+        response.text = "not valid json private-document-fragment"
+        response.candidates = [
+            unittest.mock.Mock(finish_reason=unittest.mock.Mock(value="MAX_TOKENS"))
+        ]
+        client = unittest.mock.MagicMock()
+        client.models.generate_content.return_value = response
+
+        with (
+            patch("google.genai.Client", return_value=client),
+            patch("app.gemini_guidance.time.sleep") as sleep,
+            self.assertLogs("faulttrace.gemini", level="WARNING") as logs,
+            self.assertRaises(GeminiGuidanceError) as context,
+        ):
+            _generate_sync("test-api-key", "gemini-3.8-flash", {}, [])
+
+        self.assertEqual(context.exception.code, "invalid_structured_response")
+        self.assertEqual(client.models.generate_content.call_count, 1)
+        sleep.assert_not_called()
+        log_output = "\n".join(logs.output)
+        self.assertIn("reason=invalid_json", log_output)
+        self.assertIn("json_error=Expecting value", log_output)
+        self.assertIn("finish_reason=MAX_TOKENS", log_output)
+        self.assertNotIn("private-document-fragment", log_output)
+
+    def test_missing_structured_fields_are_logged_without_response_values(self) -> None:
+        response = unittest.mock.MagicMock()
+        response.parsed = None
+        response.text = json.dumps(
+            {
+                "status": "insufficient_evidence",
+                "case_summary": {
+                    "text": "private-summary-value",
+                    "citation_ids": [],
+                },
+                "private_field": "do-not-log-this-value",
+            }
+        )
+        client = unittest.mock.MagicMock()
+        client.models.generate_content.return_value = response
+
+        with (
+            patch("google.genai.Client", return_value=client),
+            self.assertLogs("faulttrace.gemini", level="WARNING") as logs,
+            self.assertRaises(GeminiGuidanceError) as context,
+        ):
+            _generate_sync(
+                "test-api-key",
+                "gemini-3.8-flash",
+                {},
+                [{"chunk_id": 17, "excerpt": "Approved evidence"}],
+                report_id=str(REPORT_ID),
+            )
+
+        log_output = "\n".join(logs.output)
+        self.assertEqual(context.exception.code, "invalid_structured_response")
+        self.assertIn("reason=schema_validation", log_output)
+        self.assertIn('\"field\":\"safety_brief_items\"', log_output)
+        self.assertIn('\"type\":\"missing\"', log_output)
+        self.assertNotIn("private-summary-value", log_output)
+        self.assertNotIn("do-not-log-this-value", log_output)
 
     def test_no_key_configured_returns_safe_service_state(self) -> None:
         gateway = FakeGuidanceGateway()
@@ -346,6 +636,7 @@ class GuidancePlanTests(unittest.TestCase):
         self.assertEqual(gateway.search_scope[1], str(EQUIPMENT_ID))
         sent_evidence = generate.await_args.args[3]
         self.assertEqual(sent_evidence[0]["chunk_id"], 17)
+        self.assertEqual(generate.await_args.kwargs["report_id"], str(REPORT_ID))
         self.assertEqual(gateway.saved_payload["evidence_chunk_ids"], [17])
         self.assertEqual(gateway.saved_payload["evidence_snapshot"][0]["excerpt"], evidence_match()["excerpt"])
         self.assertEqual(result.status, "grounded")
@@ -363,6 +654,7 @@ class GuidancePlanTests(unittest.TestCase):
                 "app.routers.guidance.generate_guidance_with_gemini",
                 AsyncMock(return_value=grounded_draft(citation_id=999)),
             ),
+            self.assertLogs("faulttrace.guidance", level="WARNING") as logs,
         ):
             with self.assertRaises(HTTPException) as context:
                 asyncio.run(
@@ -377,6 +669,10 @@ class GuidancePlanTests(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 502)
         self.assertIn("grounding validation", context.exception.detail)
         self.assertIsNone(gateway.saved_payload)
+        log_output = "\n".join(logs.output)
+        self.assertIn("grounded statement cited unavailable evidence", log_output)
+        self.assertIn(f"report_id={REPORT_ID}", log_output)
+        self.assertNotIn(evidence_match()["excerpt"], log_output)
 
     def test_provider_rejection_returns_safe_error_without_saving(self) -> None:
         gateway = FakeGuidanceGateway()
@@ -405,6 +701,71 @@ class GuidancePlanTests(unittest.TestCase):
         self.assertEqual(
             context.exception.detail,
             "AI provider rejected the request. Check the backend configuration and server log.",
+        )
+        self.assertIsNone(gateway.saved_payload)
+
+    def test_invalid_structured_result_returns_generic_error_without_saving(self) -> None:
+        gateway = FakeGuidanceGateway()
+        authorization = AsyncMock(return_value=(gateway, {"id": TECHNICIAN_ID}))
+        with (
+            patch(
+                "app.routers.guidance.authorized_workspace_technician",
+                authorization,
+            ),
+            patch(
+                "app.routers.guidance.generate_guidance_with_gemini",
+                AsyncMock(
+                    side_effect=GeminiGuidanceError("invalid_structured_response")
+                ),
+            ),
+        ):
+            with self.assertRaises(HTTPException) as context:
+                asyncio.run(
+                    generate_guidance_plan(
+                        WORKSPACE_ID,
+                        REPORT_ID,
+                        "token",
+                        test_settings(),
+                    )
+                )
+
+        self.assertEqual(context.exception.status_code, 502)
+        self.assertEqual(
+            context.exception.detail,
+            "AI service returned an invalid structured result. No guidance plan was saved.",
+        )
+        self.assertIsNone(gateway.saved_payload)
+
+    def test_provider_busy_failure_returns_temporary_ui_error_without_saving(self) -> None:
+        gateway = FakeGuidanceGateway()
+        authorization = AsyncMock(return_value=(gateway, {"id": TECHNICIAN_ID}))
+        with (
+            patch(
+                "app.routers.guidance.authorized_workspace_technician",
+                authorization,
+            ),
+            patch(
+                "app.routers.guidance.generate_guidance_with_gemini",
+                AsyncMock(side_effect=GeminiGuidanceError("provider_busy")),
+            ),
+        ):
+            with self.assertRaises(HTTPException) as context:
+                asyncio.run(
+                    generate_guidance_plan(
+                        WORKSPACE_ID,
+                        REPORT_ID,
+                        "token",
+                        test_settings(),
+                    )
+                )
+
+        self.assertEqual(context.exception.status_code, 502)
+        self.assertEqual(
+            context.exception.detail,
+            (
+                "The AI service is temporarily busy. "
+                "Try again shortly. No guidance plan was saved."
+            ),
         )
         self.assertIsNone(gateway.saved_payload)
 

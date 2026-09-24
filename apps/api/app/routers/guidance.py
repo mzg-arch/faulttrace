@@ -1,5 +1,6 @@
 """Stored, evidence-grounded Gemini guidance for active fault reports."""
 
+import logging
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -31,9 +32,21 @@ from app.supabase import SupabaseGateway, SupabaseRequestError
 
 
 router = APIRouter(prefix="/workspaces", tags=["guidance"])
+logger = logging.getLogger("faulttrace.guidance")
 INSUFFICIENT_SUMMARY = (
     "The retrieved approved PDF evidence is insufficient to create a grounded safety brief "
     "or guidance plan. No maintenance guidance was generated."
+)
+GROUNDING_VALIDATION_REASONS = frozenset(
+    {
+        "insufficient result contained guidance or citations",
+        "grounded result omitted a required guidance section",
+        "grounded statement had no citation",
+        "grounded statement repeated a citation",
+        "grounded statement cited unavailable evidence",
+        "evidence citation list contained duplicates",
+        "evidence citation list did not match statement citations",
+    }
 )
 
 
@@ -393,13 +406,24 @@ async def generate_guidance_plan(
                 settings.gemini_model.strip(),
                 report_context,
                 [item.model_dump(mode="json") for item in evidence],
+                report_id=str(report_id),
             )
             try:
                 draft = validate_grounded_draft(
                     draft,
                     {item.chunk_id for item in evidence},
                 )
-            except ValueError:
+            except ValueError as error:
+                validation_reason = str(error)
+                if validation_reason not in GROUNDING_VALIDATION_REASONS:
+                    validation_reason = "grounding_validation_failed"
+                logger.warning(
+                    "Gemini grounding validation failed reason=%s report_id=%s "
+                    "evidence_chunk_count=%s",
+                    validation_reason,
+                    report_id,
+                    len(evidence),
+                )
                 raise HTTPException(
                     status_code=status.HTTP_502_BAD_GATEWAY,
                     detail=(
@@ -441,6 +465,11 @@ async def generate_guidance_plan(
             ) from None
         if error.code == "timeout":
             detail = "AI service timed out. No guidance plan was saved."
+        elif error.code == "provider_busy":
+            detail = (
+                "The AI service is temporarily busy. "
+                "Try again shortly. No guidance plan was saved."
+            )
         elif error.code == "provider_rejected":
             detail = (
                 "AI provider rejected the request. "
