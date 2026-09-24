@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import attachments, dashboard, documents, equipment, evidence, fault_reports, guidance, health, team
+from app.routers import attachments, dashboard, documents, equipment, evidence, fault_reports, guidance, health, onboarding, team
 from app.settings import get_settings
 
 
@@ -30,6 +30,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 app.include_router(health.router)
+app.include_router(onboarding.router)
 app.include_router(team.router)
 app.include_router(equipment.router)
 app.include_router(documents.router)

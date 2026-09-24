@@ -42,16 +42,16 @@ export function SetPasswordForm() {
 
   return (
     <form onSubmit={handleSubmit} noValidate aria-busy={isSubmitting} className="mt-8 space-y-5">
-      <label className="block text-sm font-medium text-slate-200">
+      <label className="block text-sm font-medium text-zinc-200">
         New password
-        <input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={isSubmitting} className="mt-2 w-full rounded-xl border border-white/15 bg-[#091522] px-4 py-3.5 text-white outline-none focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/20 disabled:opacity-60" />
+        <input type="password" autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={isSubmitting} className="mt-2 w-full rounded-md border border-white/15 bg-[#111315] px-4 py-3.5 text-white outline-none focus:border-teal-300 focus:ring-2 focus:ring-teal-300/20 disabled:opacity-60" />
       </label>
-      <label className="block text-sm font-medium text-slate-200">
+      <label className="block text-sm font-medium text-zinc-200">
         Confirm password
-        <input type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={isSubmitting} className="mt-2 w-full rounded-xl border border-white/15 bg-[#091522] px-4 py-3.5 text-white outline-none focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/20 disabled:opacity-60" />
+        <input type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={isSubmitting} className="mt-2 w-full rounded-md border border-white/15 bg-[#111315] px-4 py-3.5 text-white outline-none focus:border-teal-300 focus:ring-2 focus:ring-teal-300/20 disabled:opacity-60" />
       </label>
-      {error && <p role="alert" className="rounded-xl border border-amber-300/25 bg-amber-300/5 px-4 py-3 text-sm text-amber-100">{error}</p>}
-      <button type="submit" disabled={isSubmitting} className="w-full rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-bold text-[#07111c] transition hover:bg-cyan-200 disabled:cursor-wait disabled:opacity-60">
+      {error && <p role="alert" className="rounded-md border border-red-300/25 bg-red-300/5 px-4 py-3 text-sm text-red-100">{error}</p>}
+      <button type="submit" disabled={isSubmitting} className="w-full rounded-md bg-teal-300 px-4 py-3.5 text-sm font-bold text-[#0d0f10] transition hover:bg-teal-200 disabled:cursor-wait disabled:opacity-60">
         {isSubmitting ? "Saving password..." : "Set password and continue"}
       </button>
     </form>

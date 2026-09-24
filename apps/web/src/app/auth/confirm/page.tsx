@@ -106,16 +106,15 @@ export default function ConfirmInvitationPage() {
   }, []);
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#07111c]">
+    <main className="relative min-h-screen overflow-hidden bg-[#0d0f10]">
       <div aria-hidden="true" className="faulttrace-grid pointer-events-none absolute inset-0 opacity-40" />
-      <div aria-hidden="true" className="faulttrace-glow pointer-events-none absolute -left-80 top-10 size-[760px]" />
       <div className="relative mx-auto max-w-7xl px-6 sm:px-10">
         <header className="border-b border-white/10 py-7"><BrandMark /></header>
         <section className="mx-auto max-w-lg py-16 sm:py-24">
-          <div className="rounded-3xl border border-white/10 bg-[#101e2d]/95 p-7 text-center shadow-[0_24px_80px_rgba(0,0,0,0.35)] sm:p-10">
-            <div className="mx-auto size-8 animate-spin rounded-full border-2 border-cyan-300/25 border-t-cyan-300" aria-hidden="true" />
+          <div className="rounded-lg border border-white/10 bg-[#151719]/95 p-7 text-center shadow-sm sm:p-10">
+            <div className="mx-auto size-8 animate-spin rounded-full border-2 border-teal-300/25 border-t-teal-300" aria-hidden="true" />
             <h1 className="mt-6 text-2xl font-semibold text-white">Accepting your invitation</h1>
-            <p role="status" className="mt-3 text-sm leading-7 text-slate-400">
+            <p role="status" className="mt-3 text-sm leading-7 text-zinc-400">
               Verifying your FaultTrace access and preparing password setup.
             </p>
           </div>

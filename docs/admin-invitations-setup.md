@@ -61,4 +61,4 @@ Do not test with the signed-in admin's email. Duplicate workspace invitations an
 - The web app calls the local FastAPI origin at `http://localhost:8000`. Add a deployment-specific public API URL configuration before hosting either app.
 - Supabase's development email service has low limits and no delivery guarantee. Production email delivery remains a later deployment decision.
 - Auth invitation and database membership creation span two services. Failed finalization is recorded as `failed`; a production admin recovery or resend workflow should reconcile those records.
-- Role changes, invitation cancellation, member removal, audit history, and rate limiting are later administration work.
+- Role changes, invitation cancellation, member removal, and invitation audit history are later administration work. Public company onboarding has a process-local prototype rate limit; authenticated Team & Access invitations retain their existing provider limits.

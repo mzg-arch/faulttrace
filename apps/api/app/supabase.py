@@ -144,6 +144,60 @@ class SupabaseGateway:
         )
         return response.json()[0]
 
+    async def begin_company_workspace_onboarding(
+        self,
+        *,
+        workspace_name: str,
+        workspace_slug: str,
+        email: str,
+        display_name: str,
+    ) -> dict[str, str]:
+        """Atomically create a workspace and its single initial admin invitation."""
+        response = await self._request(
+            "POST",
+            "/rest/v1/rpc/begin_company_workspace_onboarding",
+            key=self.secret_key,
+            json={
+                "target_workspace_name": workspace_name,
+                "target_workspace_slug": workspace_slug,
+                "target_email": email,
+                "target_display_name": display_name,
+            },
+            operation="begin_company_workspace_onboarding",
+        )
+        payload = response.json()
+        row = payload[0] if isinstance(payload, list) and payload else None
+        if not isinstance(row, dict) or not row.get("workspace_id") or not row.get("invitation_id"):
+            raise SupabaseRequestError(
+                502,
+                "begin_company_workspace_onboarding",
+                "invalid_response",
+                "Onboarding transaction did not return the required identifiers",
+            )
+        return {
+            "workspace_id": str(row["workspace_id"]),
+            "invitation_id": str(row["invitation_id"]),
+        }
+
+    async def cancel_company_workspace_onboarding(
+        self,
+        *,
+        workspace_id: str,
+        invitation_id: str,
+    ) -> bool:
+        """Remove an unfinalized onboarding workspace through the guarded SQL function."""
+        response = await self._request(
+            "POST",
+            "/rest/v1/rpc/cancel_company_workspace_onboarding",
+            key=self.secret_key,
+            json={
+                "target_workspace_id": workspace_id,
+                "target_invitation_id": invitation_id,
+            },
+            operation="cancel_company_workspace_onboarding",
+        )
+        return response.json() is True
+
     async def workspace_access_exists(self, workspace_id: str, email: str) -> bool:
         """Check workspace invitations and memberships for an exact email match."""
         invitation_response = await self._request(

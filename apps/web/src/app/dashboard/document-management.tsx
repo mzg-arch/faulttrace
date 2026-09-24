@@ -33,7 +33,7 @@ const EMPTY_FORM: DocumentForm = {
 };
 
 const inputClass =
-  "mt-2 w-full rounded-xl border border-white/15 bg-[#07111c] px-3.5 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300 disabled:opacity-60";
+  "mt-2 w-full rounded-md border border-white/15 bg-[#0d0f10] px-3.5 py-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-teal-300 disabled:opacity-60";
 
 function sortDocuments(documents: LibraryDocument[]) {
   return [...documents].sort((left, right) => left.title.localeCompare(right.title));
@@ -314,45 +314,45 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
   }
 
   return (
-    <section id="documents" className="my-10 scroll-mt-6 rounded-3xl border border-cyan-300/15 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="document-management-title">
+    <section id="documents" className="scroll-mt-6 rounded-lg border border-white/10 bg-[#151719] p-5 sm:p-6" aria-labelledby="document-management-title">
       <div className="flex flex-col gap-3 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Admin controls</p>
-          <h2 id="document-management-title" className="mt-2 text-2xl font-semibold text-white">Approved Document Library</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">Admin controls</p>
+          <h2 id="document-management-title" className="mt-2 text-xl font-semibold text-white">Document register</h2>
         </div>
-        <p className="max-w-lg text-sm leading-6 text-slate-400">Upload and maintain official evidence sources. Files remain private and open through temporary authorized links.</p>
+        <p className="max-w-lg text-sm leading-6 text-zinc-400">Upload and maintain official evidence sources. Files remain private and open through temporary authorized links.</p>
       </div>
 
       <div className="grid gap-8 pt-7 xl:grid-cols-[1.25fr_0.75fr]">
         <div>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-semibold text-white">Workspace documents</h3>
-            {!isLoading && !loadError && <span className="text-xs text-slate-500">{counts.approved} approved · {counts.archived} archived</span>}
+            {!isLoading && !loadError && <span className="text-xs text-zinc-500">{counts.approved} approved · {counts.archived} archived</span>}
           </div>
-          {isLoading && <p role="status" className="rounded-xl border border-white/10 p-4 text-sm text-slate-400">Loading documents...</p>}
-          {loadError && <div role="alert" className="rounded-xl border border-amber-300/25 bg-amber-300/5 p-4 text-sm text-amber-100"><p>{loadError}</p><button type="button" onClick={() => void loadLibrary()} className="mt-3 font-semibold text-cyan-200 hover:text-cyan-100">Try again</button></div>}
-          {!isLoading && !loadError && documents.length === 0 && <div className="rounded-2xl border border-dashed border-white/15 bg-[#091522]/60 p-7 text-center"><p className="font-medium text-slate-200">No approved documents have been uploaded.</p><p className="mt-2 text-sm leading-6 text-slate-500">Add the first official manual, diagram, bulletin, or fault-code sheet.</p></div>}
+          {isLoading && <p role="status" className="rounded-md border border-white/10 p-4 text-sm text-zinc-400">Loading documents...</p>}
+          {loadError && <div role="alert" className="rounded-md border border-red-300/25 bg-red-300/5 p-4 text-sm text-red-100"><p>{loadError}</p><button type="button" onClick={() => void loadLibrary()} className="mt-3 font-semibold text-teal-200 hover:text-teal-100">Try again</button></div>}
+          {!isLoading && !loadError && documents.length === 0 && <div className="rounded-lg border border-dashed border-white/15 bg-[#111315]/60 p-7 text-center"><p className="font-medium text-zinc-200">No approved documents have been uploaded.</p><p className="mt-2 text-sm leading-6 text-zinc-500">Add the first official manual, diagram, bulletin, or fault-code sheet.</p></div>}
           {!isLoading && !loadError && documents.length > 0 && (
             <ul className="space-y-3">
               {documents.map((document) => (
-                <li key={document.id} className="rounded-2xl border border-white/10 bg-[#091522] p-5">
+                <li key={document.id} className="rounded-lg border border-white/10 bg-[#111315] p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="font-semibold text-white">{document.title}</h4>
-                        <span className={document.status === "approved" ? "rounded-full border border-emerald-300/20 bg-emerald-300/5 px-2.5 py-1 text-xs font-semibold text-emerald-200" : "rounded-full border border-slate-400/20 bg-slate-400/5 px-2.5 py-1 text-xs font-semibold text-slate-400"}>{document.status}</span>
-                        <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-slate-300">{DOCUMENT_TYPE_LABELS[document.document_type]}</span>
+                        <span className={document.status === "approved" ? "rounded-full border border-emerald-300/20 bg-emerald-300/5 px-2.5 py-1 text-xs font-semibold text-emerald-200" : "rounded-full border border-zinc-400/20 bg-zinc-400/5 px-2.5 py-1 text-xs font-semibold text-zinc-400"}>{document.status}</span>
+                        <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-zinc-300">{DOCUMENT_TYPE_LABELS[document.document_type]}</span>
                       </div>
-                      <p className="mt-3 text-sm text-slate-400">{document.description ?? "No description provided."}</p>
-                      <p className="mt-3 text-xs text-slate-500">{document.equipment_name ?? "General workspace document"}{document.source_revision ? ` · ${document.source_revision}` : ""}</p>
-                      <p className="mt-1 text-xs text-slate-600">{document.file_name ?? "Stored file"} · {formatFileSize(document.size_bytes)}</p>
-                      <p className={document.index_status === "indexed" ? "mt-2 text-xs font-medium text-emerald-300" : document.index_status === "no_text" || document.index_status === "failed" ? "mt-2 text-xs font-medium text-amber-200" : "mt-2 text-xs text-slate-500"}>{documentIndexLabel(document)}</p>
+                      <p className="mt-3 text-sm text-zinc-400">{document.description ?? "No description provided."}</p>
+                      <p className="mt-3 text-xs text-zinc-500">{document.equipment_name ?? "General workspace document"}{document.source_revision ? ` · ${document.source_revision}` : ""}</p>
+                      <p className="mt-1 text-xs text-zinc-600">{document.file_name ?? "Stored file"} · {formatFileSize(document.size_bytes)}</p>
+                      <p className={document.index_status === "indexed" ? "mt-2 text-xs font-medium text-emerald-300" : document.index_status === "no_text" || document.index_status === "failed" ? "mt-2 text-xs font-medium text-amber-200" : "mt-2 text-xs text-zinc-500"}>{documentIndexLabel(document)}</p>
                     </div>
                     <div className="flex shrink-0 flex-wrap gap-2">
-                      <button type="button" onClick={() => void openDocument(document)} disabled={busyDocumentId !== null || indexingDocumentId !== null} className="rounded-lg border border-cyan-300/20 px-3 py-2 text-xs font-semibold text-cyan-100 hover:border-cyan-300/50 disabled:opacity-50">{busyDocumentId === document.id ? "Opening..." : "Open"}</button>
-                      {document.status === "approved" && document.content_type === "application/pdf" && <button type="button" onClick={() => void indexDocument(document)} disabled={indexingDocumentId !== null || busyDocumentId !== null || isSaving} className="rounded-lg border border-emerald-300/20 px-3 py-2 text-xs font-semibold text-emerald-100 hover:border-emerald-300/50 disabled:opacity-50">{indexingDocumentId === document.id ? "Indexing..." : document.index_status === "indexed" ? "Reindex PDF" : "Index PDF"}</button>}
-                      <button type="button" onClick={() => editDocument(document)} disabled={isSaving || busyDocumentId !== null || indexingDocumentId !== null} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-slate-200 hover:border-cyan-300/40 disabled:opacity-50">Edit</button>
-                      {document.status !== "archived" && <button type="button" onClick={() => void archiveDocument(document)} disabled={busyDocumentId !== null || indexingDocumentId !== null || isSaving} className="rounded-lg border border-amber-300/20 px-3 py-2 text-xs font-semibold text-amber-100 hover:border-amber-300/50 disabled:opacity-50">{busyDocumentId === document.id ? "Archiving..." : "Archive"}</button>}
+                      <button type="button" onClick={() => void openDocument(document)} disabled={busyDocumentId !== null || indexingDocumentId !== null} className="rounded-md border border-teal-300/20 px-3 py-2 text-xs font-semibold text-teal-100 hover:border-teal-300/50 disabled:opacity-50">{busyDocumentId === document.id ? "Opening..." : "Open"}</button>
+                      {document.status === "approved" && document.content_type === "application/pdf" && <button type="button" onClick={() => void indexDocument(document)} disabled={indexingDocumentId !== null || busyDocumentId !== null || isSaving} className="rounded-md border border-emerald-300/20 px-3 py-2 text-xs font-semibold text-emerald-100 hover:border-emerald-300/50 disabled:opacity-50">{indexingDocumentId === document.id ? "Indexing..." : document.index_status === "indexed" ? "Reindex PDF" : "Index PDF"}</button>}
+                      <button type="button" onClick={() => editDocument(document)} disabled={isSaving || busyDocumentId !== null || indexingDocumentId !== null} className="rounded-md border border-white/15 px-3 py-2 text-xs font-semibold text-zinc-200 hover:border-teal-300/40 disabled:opacity-50">Edit</button>
+                      {document.status !== "archived" && <button type="button" onClick={() => void archiveDocument(document)} disabled={busyDocumentId !== null || indexingDocumentId !== null || isSaving} className="rounded-md border border-amber-300/20 px-3 py-2 text-xs font-semibold text-amber-100 hover:border-amber-300/50 disabled:opacity-50">{busyDocumentId === document.id ? "Archiving..." : "Archive"}</button>}
                     </div>
                   </div>
                 </li>
@@ -361,20 +361,20 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
           )}
         </div>
 
-        <form onSubmit={saveDocument} noValidate aria-busy={isSaving} className="h-fit rounded-2xl border border-white/10 bg-[#091522] p-5 sm:p-6">
-          <div className="flex items-center justify-between gap-4"><h3 className="font-semibold text-white">{editingId ? "Edit metadata" : "Upload approved document"}</h3>{editingId && <button type="button" onClick={resetForm} disabled={isSaving} className="text-xs font-semibold text-slate-400 hover:text-white">Cancel</button>}</div>
+        <form onSubmit={saveDocument} noValidate aria-busy={isSaving} className="h-fit rounded-lg border border-white/10 bg-[#111315] p-5 sm:p-6">
+          <div className="flex items-center justify-between gap-4"><h3 className="font-semibold text-white">{editingId ? "Edit metadata" : "Upload approved document"}</h3>{editingId && <button type="button" onClick={resetForm} disabled={isSaving} className="text-xs font-semibold text-zinc-400 hover:text-white">Cancel</button>}</div>
           <div className="mt-5 space-y-4">
-            <label className="block text-sm text-slate-300">Title<input className={inputClass} value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} disabled={isSaving} maxLength={200} /></label>
-            <label className="block text-sm text-slate-300">Document type<select className={inputClass} value={form.document_type} onChange={(event) => setForm((current) => ({ ...current, document_type: event.target.value as DocumentType }))} disabled={isSaving}>{Object.entries(DOCUMENT_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-            <label className="block text-sm text-slate-300">Linked equipment<select className={inputClass} value={form.equipment_id} onChange={(event) => setForm((current) => ({ ...current, equipment_id: event.target.value }))} disabled={isSaving}><option value="">General workspace document</option>{equipment.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.asset_tag ?? "no asset ID"}){item.status === "archived" ? " — archived" : ""}</option>)}</select></label>
-            <label className="block text-sm text-slate-300">Revision / reference<input className={inputClass} value={form.source_revision} onChange={(event) => setForm((current) => ({ ...current, source_revision: event.target.value }))} disabled={isSaving} maxLength={120} placeholder="Example: Rev. C / 3AXD50000044785" /></label>
-            <label className="block text-sm text-slate-300">Description<textarea className={`${inputClass} min-h-24 resize-y`} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} disabled={isSaving} maxLength={2000} /></label>
-            {!editingId && <label className="block text-sm text-slate-300">File<input key={fileInputKey} className={`${inputClass} file:mr-3 file:rounded-lg file:border-0 file:bg-cyan-300 file:px-3 file:py-2 file:text-xs file:font-bold file:text-[#07111c]`} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={isSaving} /><span className="mt-2 block text-xs text-slate-500">PDF, PNG, JPG/JPEG, or WEBP · maximum 10 MB</span></label>}
+            <label className="block text-sm text-zinc-300">Title<input className={inputClass} value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} disabled={isSaving} maxLength={200} /></label>
+            <label className="block text-sm text-zinc-300">Document type<select className={inputClass} value={form.document_type} onChange={(event) => setForm((current) => ({ ...current, document_type: event.target.value as DocumentType }))} disabled={isSaving}>{Object.entries(DOCUMENT_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+            <label className="block text-sm text-zinc-300">Linked equipment<select className={inputClass} value={form.equipment_id} onChange={(event) => setForm((current) => ({ ...current, equipment_id: event.target.value }))} disabled={isSaving}><option value="">General workspace document</option>{equipment.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.asset_tag ?? "no asset ID"}){item.status === "archived" ? " — archived" : ""}</option>)}</select></label>
+            <label className="block text-sm text-zinc-300">Revision / reference<input className={inputClass} value={form.source_revision} onChange={(event) => setForm((current) => ({ ...current, source_revision: event.target.value }))} disabled={isSaving} maxLength={120} placeholder="Example: Rev. C / 3AXD50000044785" /></label>
+            <label className="block text-sm text-zinc-300">Description<textarea className={`${inputClass} min-h-24 resize-y`} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} disabled={isSaving} maxLength={2000} /></label>
+            {!editingId && <label className="block text-sm text-zinc-300">File<input key={fileInputKey} className={`${inputClass} file:mr-3 file:rounded-md file:border-0 file:bg-teal-300 file:px-3 file:py-2 file:text-xs file:font-bold file:text-[#0d0f10]`} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={isSaving} /><span className="mt-2 block text-xs text-zinc-500">PDF, PNG, JPG/JPEG, or WEBP · maximum 10 MB</span></label>}
           </div>
-          {isSaving && !editingId && <div className="mt-4" role="status"><div className="mb-2 flex justify-between text-xs text-slate-400"><span>Uploading securely</span><span>{uploadProgress}%</span></div><div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-cyan-300 transition-all" style={{ width: `${uploadProgress}%` }} /></div></div>}
-          {formError && <p role="alert" className="mt-4 rounded-xl border border-amber-300/25 bg-amber-300/5 px-4 py-3 text-sm text-amber-100">{formError}</p>}
-          {success && <p role="status" className="mt-4 rounded-xl border border-emerald-300/25 bg-emerald-300/5 px-4 py-3 text-sm text-emerald-100">{success}</p>}
-          <button type="submit" disabled={isSaving} className="mt-5 w-full rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-[#07111c] transition hover:bg-cyan-200 disabled:cursor-wait disabled:opacity-60">{isSaving ? editingId ? "Saving..." : "Uploading..." : editingId ? "Save metadata" : "Upload approved document"}</button>
+          {isSaving && !editingId && <div className="mt-4" role="status"><div className="mb-2 flex justify-between text-xs text-zinc-400"><span>Uploading securely</span><span>{uploadProgress}%</span></div><div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-teal-300 transition-all" style={{ width: `${uploadProgress}%` }} /></div></div>}
+          {formError && <p role="alert" className="mt-4 rounded-md border border-red-300/25 bg-red-300/5 px-4 py-3 text-sm text-red-100">{formError}</p>}
+          {success && <p role="status" className="mt-4 rounded-md border border-emerald-300/25 bg-emerald-300/5 px-4 py-3 text-sm text-emerald-100">{success}</p>}
+          <button type="submit" disabled={isSaving} className="mt-5 w-full rounded-md bg-teal-300 px-4 py-3 text-sm font-bold text-[#0d0f10] transition hover:bg-teal-200 disabled:cursor-wait disabled:opacity-60">{isSaving ? editingId ? "Saving..." : "Uploading..." : editingId ? "Save metadata" : "Upload approved document"}</button>
         </form>
       </div>
     </section>

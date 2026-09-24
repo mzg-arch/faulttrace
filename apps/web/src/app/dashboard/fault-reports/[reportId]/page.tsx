@@ -13,7 +13,12 @@ export default async function FaultReportPage({
   ]);
 
   return (
-    <FaultReportShell email={access.email} workspaceName={access.workspace.name}>
+    <FaultReportShell
+      role={access.role}
+      email={access.email}
+      displayName={access.displayName}
+      workspaceName={access.workspace.name}
+    >
       <FaultCase
         workspaceId={access.workspace.id}
         reportId={route.reportId}

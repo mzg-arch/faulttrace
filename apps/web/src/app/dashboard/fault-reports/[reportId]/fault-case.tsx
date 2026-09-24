@@ -53,9 +53,9 @@ function ReportDetails({ report }: { report: FaultReport }) {
   return (
     <dl className="grid gap-4 sm:grid-cols-2">
       {details.map(([label, value], index) => (
-        <div key={label} className={index > 1 ? "rounded-2xl border border-white/10 bg-[#091522] p-5 sm:col-span-2" : "rounded-2xl border border-white/10 bg-[#091522] p-5"}>
-          <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</dt>
-          <dd className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-200">{value}</dd>
+        <div key={label} className={index > 1 ? "rounded-lg border border-white/10 bg-[#111315] p-5 sm:col-span-2" : "rounded-lg border border-white/10 bg-[#111315] p-5"}>
+          <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">{label}</dt>
+          <dd className="mt-2 whitespace-pre-wrap text-sm leading-7 text-zinc-200">{value}</dd>
         </div>
       ))}
     </dl>
@@ -218,22 +218,22 @@ function AttachedPhotosSection({
   }
 
   return (
-    <section className="rounded-3xl border border-sky-300/15 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="attached-photos-title">
+    <section className="rounded-lg border border-teal-300/15 bg-[#151719]/90 p-6 sm:p-8" aria-labelledby="attached-photos-title">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-6">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-300">Private report media</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">Private report media</p>
           <h2 id="attached-photos-title" className="mt-2 text-2xl font-semibold text-white">Attached photos</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Photos support reporting only and do not replace approved inspection procedures.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">Photos support reporting only and do not replace approved inspection procedures.</p>
         </div>
-        <span className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-slate-300">JPEG, PNG, WebP · 10 MB max</span>
+        <span className="rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-zinc-300">JPEG, PNG, WebP · 10 MB max</span>
       </div>
 
-      {role === "admin" && <p className="mt-5 rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-4 py-3 text-sm text-cyan-100">Read-only administrator view. Photo upload and deletion remain technician actions.</p>}
-      {role === "technician" && report.status === "resolved" && <p className="mt-5 rounded-xl border border-violet-300/15 bg-violet-300/5 px-4 py-3 text-sm text-violet-100">Resolved report photos are read-only and cannot be changed or deleted.</p>}
+      {role === "admin" && <p className="mt-5 rounded-md border border-teal-300/15 bg-teal-300/5 px-4 py-3 text-sm text-teal-100">Read-only administrator view. Photo upload and deletion remain technician actions.</p>}
+      {role === "technician" && report.status === "resolved" && <p className="mt-5 rounded-md border border-emerald-300/15 bg-emerald-300/5 px-4 py-3 text-sm text-emerald-100">Resolved report photos are read-only and cannot be changed or deleted.</p>}
 
       {canUpload && (
-        <div className="mt-5 flex flex-col gap-4 rounded-2xl border border-sky-300/15 bg-[#091522] p-5 sm:flex-row sm:items-end">
-          <label className="min-w-0 flex-1 text-sm font-medium text-slate-200">
+        <div className="mt-5 flex flex-col gap-4 rounded-lg border border-teal-300/15 bg-[#111315] p-5 sm:flex-row sm:items-end">
+          <label className="min-w-0 flex-1 text-sm font-medium text-zinc-200">
             Add a report photo
             <input
               key={fileInputKey}
@@ -241,36 +241,36 @@ function AttachedPhotosSection({
               accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
               onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
               disabled={isUploading}
-              className="mt-2 block w-full rounded-xl border border-white/10 bg-[#07111c] px-3 py-2.5 text-sm text-slate-300 file:mr-4 file:rounded-lg file:border-0 file:bg-sky-300 file:px-3 file:py-2 file:font-semibold file:text-[#07111c]"
+              className="mt-2 block w-full rounded-md border border-white/10 bg-[#0d0f10] px-3 py-2.5 text-sm text-zinc-300 file:mr-4 file:rounded-md file:border-0 file:bg-teal-300 file:px-3 file:py-2 file:font-semibold file:text-[#0d0f10]"
             />
           </label>
-          <button type="button" onClick={() => void uploadPhoto()} disabled={!selectedFile || isUploading} className="rounded-xl bg-sky-300 px-5 py-3 text-sm font-bold text-[#07111c] hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-40">{isUploading ? "Uploading photo..." : "Attach photo"}</button>
+          <button type="button" onClick={() => void uploadPhoto()} disabled={!selectedFile || isUploading} className="rounded-md bg-teal-300 px-5 py-3 text-sm font-bold text-[#0d0f10] hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-40">{isUploading ? "Uploading photo..." : "Attach photo"}</button>
         </div>
       )}
 
-      {error && <div role="alert" className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/5 p-4 text-sm text-amber-100"><p>{error}</p><button type="button" onClick={() => void loadAttachments()} className="mt-3 font-semibold text-cyan-200 hover:text-cyan-100">Reload photos</button></div>}
-      {success && <p role="status" className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/5 px-4 py-3 text-sm text-emerald-100">{success}</p>}
-      {isLoading && <p role="status" className="mt-5 rounded-xl border border-white/10 p-5 text-sm text-slate-400">Loading private report photos...</p>}
-      {!isLoading && !error && attachments.length === 0 && <div className="mt-5 rounded-2xl border border-dashed border-white/15 bg-[#091522]/60 p-6 text-center"><p className="font-medium text-slate-200">No photos are attached to this report.</p><p className="mt-2 text-sm text-slate-500">{canUpload ? "Attach a clear reporting photo if it supports the case record." : "Technician photos will appear here when available."}</p></div>}
+      {error && <div role="alert" className="mt-5 rounded-md border border-red-300/25 bg-red-300/5 p-4 text-sm text-red-100"><p>{error}</p><button type="button" onClick={() => void loadAttachments()} className="mt-3 font-semibold text-teal-200 hover:text-teal-100">Reload photos</button></div>}
+      {success && <p role="status" className="mt-5 rounded-md border border-emerald-300/20 bg-emerald-300/5 px-4 py-3 text-sm text-emerald-100">{success}</p>}
+      {isLoading && <p role="status" className="mt-5 rounded-md border border-white/10 p-5 text-sm text-zinc-400">Loading private report photos...</p>}
+      {!isLoading && !error && attachments.length === 0 && <div className="mt-5 rounded-lg border border-dashed border-white/15 bg-[#111315]/60 p-6 text-center"><p className="font-medium text-zinc-200">No photos are attached to this report.</p><p className="mt-2 text-sm text-zinc-500">{canUpload ? "Attach a clear reporting photo if it supports the case record." : "Technician photos will appear here when available."}</p></div>}
       {!isLoading && attachments.length > 0 && (
         <ul className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {attachments.map((attachment) => (
-            <li key={attachment.id} className="overflow-hidden rounded-2xl border border-white/10 bg-[#091522]">
-              <div className="aspect-[4/3] bg-[#07111c]">
+            <li key={attachment.id} className="overflow-hidden rounded-lg border border-white/10 bg-[#111315]">
+              <div className="aspect-[4/3] bg-[#0d0f10]">
                 {photoUrls[attachment.id] ? (
                   // Signed private object URLs are intentionally rendered without Next image optimization.
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={photoUrls[attachment.id]} alt={`Attached fault report photo ${attachment.file_name}`} className="size-full object-cover" />
                 ) : (
-                  <div className="flex size-full items-center justify-center px-5 text-center text-sm text-slate-500">Preview link unavailable. Use Open to retry.</div>
+                  <div className="flex size-full items-center justify-center px-5 text-center text-sm text-zinc-500">Preview link unavailable. Use Open to retry.</div>
                 )}
               </div>
               <div className="p-4">
                 <p className="truncate text-sm font-semibold text-white" title={attachment.file_name}>{attachment.file_name}</p>
-                <p className="mt-1 text-xs text-slate-500">{formatFileSize(attachment.size_bytes)} · {formatReportDate(attachment.created_at)}</p>
+                <p className="mt-1 text-xs text-zinc-500">{formatFileSize(attachment.size_bytes)} · {formatReportDate(attachment.created_at)}</p>
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => void openPhoto(attachment)} disabled={activeAttachmentId === attachment.id} className="rounded-lg border border-sky-300/25 px-3 py-2 text-xs font-semibold text-sky-100 hover:border-sky-300/60 disabled:opacity-50">{activeAttachmentId === attachment.id ? "Opening..." : "Open"}</button>
-                  {attachment.can_delete && <button type="button" onClick={() => void deletePhoto(attachment)} disabled={activeAttachmentId === attachment.id} className="rounded-lg border border-red-300/20 px-3 py-2 text-xs font-semibold text-red-100 hover:border-red-300/50 disabled:opacity-50">Delete</button>}
+                  <button type="button" onClick={() => void openPhoto(attachment)} disabled={activeAttachmentId === attachment.id} className="rounded-md border border-teal-300/25 px-3 py-2 text-xs font-semibold text-teal-100 hover:border-teal-300/60 disabled:opacity-50">{activeAttachmentId === attachment.id ? "Opening..." : "Open"}</button>
+                  {attachment.can_delete && <button type="button" onClick={() => void deletePhoto(attachment)} disabled={activeAttachmentId === attachment.id} className="rounded-md border border-red-300/20 px-3 py-2 text-xs font-semibold text-red-100 hover:border-red-300/50 disabled:opacity-50">Delete</button>}
                 </div>
               </div>
             </li>
@@ -313,37 +313,37 @@ function ApprovedEvidence({
   }
 
   return (
-    <section className="rounded-3xl border border-cyan-300/15 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="approved-evidence-title">
+    <section className="rounded-lg border border-teal-300/15 bg-[#151719]/90 p-6 sm:p-8" aria-labelledby="approved-evidence-title">
       <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Deterministic PDF retrieval</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">Deterministic PDF retrieval</p>
           <h2 id="approved-evidence-title" className="mt-2 text-2xl font-semibold text-white">Approved evidence</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Search readable text from approved workspace PDFs using this report and equipment. Results are verbatim excerpts, not instructions or a diagnosis.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">Search readable text from approved workspace PDFs using this report and equipment. Results are verbatim excerpts, not instructions or a diagnosis.</p>
         </div>
-        <button type="button" onClick={() => void retrieveEvidence()} disabled={isRetrieving} className="shrink-0 rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-[#07111c] hover:bg-cyan-200 disabled:cursor-wait disabled:opacity-60">{isRetrieving ? "Retrieving evidence..." : result ? "Retrieve again" : "Retrieve approved evidence"}</button>
+        <button type="button" onClick={() => void retrieveEvidence()} disabled={isRetrieving} className="shrink-0 rounded-md bg-teal-300 px-4 py-3 text-sm font-bold text-[#0d0f10] hover:bg-teal-200 disabled:cursor-wait disabled:opacity-60">{isRetrieving ? "Retrieving evidence..." : result ? "Retrieve again" : "Retrieve approved evidence"}</button>
       </div>
 
-      {retrievalError && <div role="alert" className="mt-6 rounded-xl border border-amber-300/25 bg-amber-300/5 p-4 text-sm text-amber-100"><p>{retrievalError}</p><button type="button" onClick={() => void retrieveEvidence()} className="mt-3 font-semibold text-cyan-200 hover:text-cyan-100">Try again</button></div>}
-      {isRetrieving && <p role="status" className="mt-6 rounded-xl border border-white/10 p-4 text-sm text-slate-400">Searching indexed approved PDF excerpts...</p>}
-      {!isRetrieving && !retrievalError && !result && <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-[#091522]/60 p-6 text-center"><p className="font-medium text-slate-200">Evidence has not been retrieved for this case.</p><p className="mt-2 text-sm leading-6 text-slate-500">Retrieval returns only matching excerpts from approved PDFs that an administrator has indexed.</p></div>}
-      {!isRetrieving && !retrievalError && result && result.evidence.length === 0 && <div className="mt-6 rounded-2xl border border-amber-300/20 bg-amber-300/5 p-6"><p className="font-semibold text-amber-100">No approved evidence found</p><p className="mt-2 text-sm leading-6 text-amber-100/75">{result.message}</p></div>}
+      {retrievalError && <div role="alert" className="mt-6 rounded-md border border-red-300/25 bg-red-300/5 p-4 text-sm text-red-100"><p>{retrievalError}</p><button type="button" onClick={() => void retrieveEvidence()} className="mt-3 font-semibold text-teal-200 hover:text-teal-100">Try again</button></div>}
+      {isRetrieving && <p role="status" className="mt-6 rounded-md border border-white/10 p-4 text-sm text-zinc-400">Searching indexed approved PDF excerpts...</p>}
+      {!isRetrieving && !retrievalError && !result && <div className="mt-6 rounded-lg border border-dashed border-white/15 bg-[#111315]/60 p-6 text-center"><p className="font-medium text-zinc-200">Evidence has not been retrieved for this case.</p><p className="mt-2 text-sm leading-6 text-zinc-500">Retrieval returns only matching excerpts from approved PDFs that an administrator has indexed.</p></div>}
+      {!isRetrieving && !retrievalError && result && result.evidence.length === 0 && <div className="mt-6 rounded-lg border border-amber-300/20 bg-amber-300/5 p-6"><p className="font-semibold text-amber-100">No approved evidence found</p><p className="mt-2 text-sm leading-6 text-amber-100/75">{result.message}</p></div>}
       {!isRetrieving && !retrievalError && result && result.evidence.length > 0 && (
         <div className="mt-6">
-          <p className="rounded-xl border border-cyan-300/20 bg-cyan-300/5 px-4 py-3 text-sm font-semibold text-cyan-100">Approved source excerpts - review the original procedure before acting.</p>
+          <p className="rounded-md border border-teal-300/20 bg-teal-300/5 px-4 py-3 text-sm font-semibold text-teal-100">Approved source excerpts - review the original procedure before acting.</p>
           <ul className="mt-4 space-y-4">
             {result.evidence.map((evidence) => (
-              <li key={evidence.chunk_id} className="rounded-2xl border border-white/10 bg-[#091522] p-5">
+              <li key={evidence.chunk_id} className="rounded-lg border border-white/10 bg-[#111315] p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h3 className="font-semibold text-white">{evidence.document_title}</h3>
-                    <p className="mt-1 text-xs text-slate-400">C{evidence.chunk_id} · {DOCUMENT_TYPE_LABELS[evidence.document_type]} · {evidence.source_revision ?? "Revision not provided"} · Page {evidence.page_number}</p>
+                    <p className="mt-1 text-xs text-zinc-400">C{evidence.chunk_id} · {DOCUMENT_TYPE_LABELS[evidence.document_type]} · {evidence.source_revision ?? "Revision not provided"} · Page {evidence.page_number}</p>
                   </div>
                   {evidence.equipment_linked && <span className="rounded-full border border-emerald-300/20 bg-emerald-300/5 px-2.5 py-1 text-xs font-semibold text-emerald-200">Linked equipment</span>}
                 </div>
-                <blockquote className="mt-4 border-l-2 border-cyan-300/40 pl-4 text-sm leading-7 text-slate-200">{evidence.excerpt}</blockquote>
+                <blockquote className="mt-4 border-l-2 border-teal-300/40 pl-4 text-sm leading-7 text-zinc-200">{evidence.excerpt}</blockquote>
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                  <span className="text-xs text-slate-600">Verbatim extracted PDF text · temporary source link</span>
-                  <a href={`${evidence.source_url}#page=${evidence.page_number}`} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-cyan-300/25 px-3 py-2 text-xs font-semibold text-cyan-100 hover:border-cyan-300/60">Open source document</a>
+                  <span className="text-xs text-zinc-600">Verbatim extracted PDF text · temporary source link</span>
+                  <a href={`${evidence.source_url}#page=${evidence.page_number}`} target="_blank" rel="noopener noreferrer" className="cursor-pointer rounded-md border border-teal-300/25 px-3 py-2 text-xs font-semibold text-teal-100 hover:border-teal-300/60 hover:bg-teal-300/[0.06]">Open source document</a>
                 </div>
               </li>
             ))}
@@ -366,7 +366,7 @@ function CitationChips({
     <span className="inline-flex flex-wrap gap-1.5" aria-label="Supporting citations">
       {citationIds.map((citationId) => (
         availableIds.has(citationId) ? (
-          <a key={citationId} href={`#guidance-evidence-${citationId}`} className="rounded-md border border-cyan-300/25 bg-cyan-300/5 px-2 py-1 text-[11px] font-bold text-cyan-100 hover:border-cyan-300/60">C{citationId}</a>
+          <a key={citationId} href={`#guidance-evidence-${citationId}`} className="rounded-md border border-teal-300/25 bg-teal-300/5 px-2 py-1 text-[11px] font-bold text-teal-100 hover:border-teal-300/60">C{citationId}</a>
         ) : (
           <span key={citationId} className="rounded-md border border-amber-300/25 px-2 py-1 text-[11px] font-bold text-amber-100">C{citationId}</span>
         )
@@ -385,7 +385,7 @@ function CitedList({
   return (
     <ul className="mt-4 space-y-3">
       {items.map((item, index) => (
-        <li key={`${item.text}-${index}`} className="rounded-xl border border-white/10 bg-[#091522] p-4 text-sm leading-7 text-slate-200">
+        <li key={`${item.text}-${index}`} className="rounded-md border border-white/10 bg-[#111315] p-4 text-sm leading-7 text-zinc-200">
           <p>{item.text}</p>
           <div className="mt-3"><CitationChips citationIds={item.citation_ids} plan={plan} /></div>
         </li>
@@ -458,26 +458,26 @@ function GuidancePlanSection({
   }
 
   return (
-    <section className="rounded-3xl border border-violet-300/15 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="guidance-plan-title">
+    <section className="rounded-lg border border-teal-300/15 bg-[#151719]/90 p-6 sm:p-8" aria-labelledby="guidance-plan-title">
       <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">Evidence-grounded plan</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">Evidence-grounded plan</p>
           <h2 id="guidance-plan-title" className="mt-2 text-2xl font-semibold text-white">Safety brief and guided checks</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Saved plans use only report context and server-retrieved approved PDF excerpts. Every grounded statement links to its exact evidence chunk.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">Saved plans use only report context and server-retrieved approved PDF excerpts. Every grounded statement links to its exact evidence chunk.</p>
         </div>
         {canGenerate && (
-          <button type="button" onClick={() => void generatePlan()} disabled={isGenerating || isLoading} className="shrink-0 rounded-xl bg-violet-300 px-4 py-3 text-sm font-bold text-[#07111c] hover:bg-violet-200 disabled:cursor-wait disabled:opacity-60">{isGenerating ? "Validating grounded guidance..." : plan ? "Generate updated guidance" : "Generate evidence-grounded guidance"}</button>
+          <button type="button" onClick={() => void generatePlan()} disabled={isGenerating || isLoading} className="shrink-0 rounded-md bg-teal-300 px-4 py-3 text-sm font-bold text-[#0d0f10] hover:bg-teal-200 disabled:cursor-wait disabled:opacity-60">{isGenerating ? "Validating grounded guidance..." : plan ? "Generate updated guidance" : "Generate evidence-grounded guidance"}</button>
         )}
       </div>
 
-      <p className="mt-5 rounded-xl border border-amber-300/20 bg-amber-300/5 px-4 py-3 text-xs leading-6 text-amber-100/85">FaultTrace does not replace current site procedures, formal LOTO or isolation requirements, authorization, required PPE, emergency escalation, or qualified technician judgment. Stop and escalate whenever conditions are unsafe or uncertain.</p>
-      {!canGenerate && <p className="mt-4 rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-4 py-3 text-sm text-cyan-100">Read-only saved plan. Guidance cannot be generated or changed from this case view.</p>}
-      {isLoading && <p role="status" className="mt-6 rounded-xl border border-white/10 p-4 text-sm text-slate-400">Loading the latest saved guidance plan...</p>}
-      {error && <div role="alert" className="mt-6 rounded-xl border border-amber-300/25 bg-amber-300/5 p-4 text-sm text-amber-100"><p>{error}</p><button type="button" onClick={() => void loadPlan()} className="mt-3 font-semibold text-cyan-200 hover:text-cyan-100">Retry loading saved plan</button></div>}
-      {!isLoading && !error && !plan && <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-[#091522]/60 p-6 text-center"><p className="font-medium text-slate-200">No saved guidance plan exists for this case.</p><p className="mt-2 text-sm leading-6 text-slate-500">{canGenerate ? "Generate a plan after approved PDF evidence has been indexed." : role === "admin" ? "The report technician did not save a plan for this case." : "No guidance plan was saved before this report was resolved."}</p></div>}
+      <p className="mt-5 rounded-md border border-amber-300/20 bg-amber-300/5 px-4 py-3 text-xs leading-6 text-amber-100/85">FaultTrace does not replace current site procedures, formal LOTO or isolation requirements, authorization, required PPE, emergency escalation, or qualified technician judgment. Stop and escalate whenever conditions are unsafe or uncertain.</p>
+      {!canGenerate && <p className="mt-4 rounded-md border border-teal-300/15 bg-teal-300/5 px-4 py-3 text-sm text-teal-100">Read-only saved plan. Guidance cannot be generated or changed from this case view.</p>}
+      {isLoading && <p role="status" className="mt-6 rounded-md border border-white/10 p-4 text-sm text-zinc-400">Loading the latest saved guidance plan...</p>}
+      {error && <div role="alert" className="mt-6 rounded-md border border-red-300/25 bg-red-300/5 p-4 text-sm text-red-100"><p>{error}</p><button type="button" onClick={() => void loadPlan()} className="mt-3 font-semibold text-teal-200 hover:text-teal-100">Retry loading saved plan</button></div>}
+      {!isLoading && !error && !plan && <div className="mt-6 rounded-lg border border-dashed border-white/15 bg-[#111315]/60 p-6 text-center"><p className="font-medium text-zinc-200">No saved guidance plan exists for this case.</p><p className="mt-2 text-sm leading-6 text-zinc-500">{canGenerate ? "Generate a plan after approved PDF evidence has been indexed." : role === "admin" ? "The report technician did not save a plan for this case." : "No guidance plan was saved before this report was resolved."}</p></div>}
 
       {!isLoading && plan?.status === "insufficient_evidence" && (
-        <div className="mt-6 rounded-2xl border border-amber-300/25 bg-amber-300/5 p-6">
+        <div className="mt-6 rounded-lg border border-amber-300/25 bg-amber-300/5 p-6">
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-200">Insufficient approved evidence</p>
           <p className="mt-3 text-sm leading-7 text-amber-50">{plan.case_summary.text}</p>
           <p className="mt-3 text-xs leading-6 text-amber-100/70">No safety brief, guided checks, or maintenance recommendations were produced.</p>
@@ -486,9 +486,9 @@ function GuidancePlanSection({
 
       {!isLoading && plan?.status === "grounded" && (
         <div className="mt-6 space-y-7">
-          <div className="rounded-2xl border border-violet-300/15 bg-violet-300/5 p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-200">Case summary</p>
-            <p className="mt-3 text-sm leading-7 text-slate-100">{plan.case_summary.text}</p>
+          <div className="rounded-lg border border-teal-300/15 bg-teal-300/5 p-5">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-200">Case summary</p>
+            <p className="mt-3 text-sm leading-7 text-zinc-100">{plan.case_summary.text}</p>
             <div className="mt-3"><CitationChips citationIds={plan.case_summary.citation_ids} plan={plan} /></div>
           </div>
           <div>
@@ -499,8 +499,8 @@ function GuidancePlanSection({
             <h3 className="text-lg font-semibold text-white">Guided Checks</h3>
             <ol className="mt-4 space-y-4">
               {plan.guided_checks.map((check, index) => (
-                <li key={`${check.title}-${index}`} className="rounded-2xl border border-white/10 bg-[#091522] p-5">
-                  <div className="flex gap-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-violet-300/10 text-xs font-bold text-violet-200">{index + 1}</span><div><h4 className="font-semibold text-white">{check.title}</h4><p className="mt-2 text-sm leading-7 text-slate-200">{check.supported_action}</p><div className="mt-3"><CitationChips citationIds={check.citation_ids} plan={plan} /></div></div></div>
+                <li key={`${check.title}-${index}`} className="rounded-lg border border-white/10 bg-[#111315] p-5">
+                  <div className="flex gap-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-teal-300/10 text-xs font-bold text-teal-200">{index + 1}</span><div><h4 className="font-semibold text-white">{check.title}</h4><p className="mt-2 text-sm leading-7 text-zinc-200">{check.supported_action}</p><div className="mt-3"><CitationChips citationIds={check.citation_ids} plan={plan} /></div></div></div>
                 </li>
               ))}
             </ol>
@@ -514,14 +514,14 @@ function GuidancePlanSection({
 
       {!isLoading && plan && plan.evidence.length > 0 && (
         <div className="mt-8 border-t border-white/10 pt-7">
-          <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-lg font-semibold text-white">Saved evidence snapshot</h3><span className="text-xs text-slate-500">Generated {formatReportDate(plan.created_at)}</span></div>
-          <p className="mt-2 text-xs leading-6 text-slate-500">These exact excerpts were considered when this saved plan was generated. Confirm the source is still approved before acting.</p>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-lg font-semibold text-white">Saved evidence snapshot</h3><span className="text-xs text-zinc-500">Generated {formatReportDate(plan.created_at)}</span></div>
+          <p className="mt-2 text-xs leading-6 text-zinc-500">These exact excerpts were considered when this saved plan was generated. Confirm the source is still approved before acting.</p>
           <ul className="mt-4 space-y-3">
             {plan.evidence.map((evidence) => (
-              <li id={`guidance-evidence-${evidence.chunk_id}`} key={evidence.chunk_id} className="scroll-mt-6 rounded-2xl border border-white/10 bg-[#091522] p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold text-white">C{evidence.chunk_id} · {evidence.document_title}</p><p className="mt-1 text-xs text-slate-400">{DOCUMENT_TYPE_LABELS[evidence.document_type]} · {evidence.source_revision ?? "Revision not provided"} · Page {evidence.page_number}</p></div>{evidence.equipment_linked && <span className="rounded-full border border-emerald-300/20 px-2.5 py-1 text-xs font-semibold text-emerald-200">Linked equipment</span>}</div>
-                <blockquote className="mt-4 border-l-2 border-violet-300/40 pl-4 text-sm leading-7 text-slate-200">{evidence.excerpt}</blockquote>
-                <div className="mt-4 text-right">{evidence.source_available && evidence.source_url ? <a href={`${evidence.source_url}#page=${evidence.page_number}`} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-cyan-100 hover:text-cyan-200">Open approved source</a> : <span className="text-xs text-amber-200">Source is no longer currently approved for opening</span>}</div>
+              <li id={`guidance-evidence-${evidence.chunk_id}`} key={evidence.chunk_id} className="scroll-mt-6 rounded-lg border border-white/10 bg-[#111315] p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold text-white">C{evidence.chunk_id} · {evidence.document_title}</p><p className="mt-1 text-xs text-zinc-400">{DOCUMENT_TYPE_LABELS[evidence.document_type]} · {evidence.source_revision ?? "Revision not provided"} · Page {evidence.page_number}</p></div>{evidence.equipment_linked && <span className="rounded-full border border-emerald-300/20 px-2.5 py-1 text-xs font-semibold text-emerald-200">Linked equipment</span>}</div>
+                <blockquote className="mt-4 border-l-2 border-teal-300/40 pl-4 text-sm leading-7 text-zinc-200">{evidence.excerpt}</blockquote>
+                <div className="mt-4 text-right">{evidence.source_available && evidence.source_url ? <a href={`${evidence.source_url}#page=${evidence.page_number}`} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-teal-100 hover:text-teal-200">Open approved source</a> : <span className="text-xs text-amber-200">Source is no longer currently approved for opening</span>}</div>
               </li>
             ))}
           </ul>
@@ -639,94 +639,94 @@ function WorkLogSection({
   const isResolved = report.status === "resolved";
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="work-log-title">
+    <section className="rounded-lg border border-white/10 bg-[#151719]/90 p-6 sm:p-8" aria-labelledby="work-log-title">
       <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-6">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Append-only case record</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">Append-only case record</p>
           <h2 id="work-log-title" className="mt-2 text-2xl font-semibold text-white">Work Log</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">Record observations, actions, measurements, and escalations in chronological order. Entries remain part of the case audit history.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">Record observations, actions, measurements, and escalations in chronological order. Entries remain part of the case audit history.</p>
         </div>
-        <span className={isResolved ? "rounded-full border border-violet-300/25 bg-violet-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-violet-100" : "rounded-full border border-emerald-300/25 bg-emerald-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-emerald-200"}>{isResolved ? "Resolved" : "Active"}</span>
+        <span className={isResolved ? "rounded-md border border-emerald-300/25 bg-emerald-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-emerald-100" : "rounded-md border border-red-300/25 bg-red-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-red-200"}>{isResolved ? "Resolved" : "Active"}</span>
       </div>
 
-      {role === "admin" && <p className="mt-5 rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-4 py-3 text-sm text-cyan-100">Read-only administrator view. Work-log entries and resolution controls belong to the report technician.</p>}
+      {role === "admin" && <p className="mt-5 rounded-md border border-teal-300/15 bg-teal-300/5 px-4 py-3 text-sm text-teal-100">Read-only administrator view. Work-log entries and resolution controls belong to the report technician.</p>}
       {isResolved && report.resolution_summary && (
-        <div className="mt-5 rounded-2xl border border-violet-300/20 bg-violet-300/5 p-5">
+        <div className="mt-5 rounded-lg border border-emerald-300/20 bg-emerald-300/5 p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="font-semibold text-violet-100">Recorded resolution</h3>
-            <span className="text-xs text-violet-100/60">{report.resolved_at ? formatReportDate(report.resolved_at) : "Resolution time recorded"}</span>
+            <h3 className="font-semibold text-emerald-100">Recorded resolution</h3>
+            <span className="text-xs text-emerald-100/60">{report.resolved_at ? formatReportDate(report.resolved_at) : "Resolution time recorded"}</span>
           </div>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-200">{report.resolution_summary}</p>
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-zinc-200">{report.resolution_summary}</p>
         </div>
       )}
 
-      {isLoading && <p role="status" className="mt-6 rounded-xl border border-white/10 p-4 text-sm text-slate-400">Loading work-log entries...</p>}
-      {error && <div role="alert" className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/5 p-4 text-sm text-amber-100"><p>{error}</p><button type="button" onClick={() => void loadEntries()} className="mt-3 font-semibold text-cyan-200 hover:text-cyan-100">Reload work log</button></div>}
-      {success && <p role="status" className="mt-5 rounded-xl border border-emerald-300/20 bg-emerald-300/5 px-4 py-3 text-sm text-emerald-100">{success}</p>}
+      {isLoading && <p role="status" className="mt-6 rounded-md border border-white/10 p-4 text-sm text-zinc-400">Loading work-log entries...</p>}
+      {error && <div role="alert" className="mt-5 rounded-md border border-red-300/25 bg-red-300/5 p-4 text-sm text-red-100"><p>{error}</p><button type="button" onClick={() => void loadEntries()} className="mt-3 font-semibold text-teal-200 hover:text-teal-100">Reload work log</button></div>}
+      {success && <p role="status" className="mt-5 rounded-md border border-emerald-300/20 bg-emerald-300/5 px-4 py-3 text-sm text-emerald-100">{success}</p>}
 
       {!isLoading && entries.length === 0 && (
-        <div className="mt-6 rounded-2xl border border-dashed border-white/15 bg-[#091522]/60 p-6 text-center">
-          <p className="font-medium text-slate-200">No work-log entries yet.</p>
-          <p className="mt-2 text-sm leading-6 text-slate-500">{role === "technician" && !isResolved ? "Record the first supported observation, action, measurement, or escalation." : "Technician activity will appear here as it is recorded."}</p>
+        <div className="mt-6 rounded-lg border border-dashed border-white/15 bg-[#111315]/60 p-6 text-center">
+          <p className="font-medium text-zinc-200">No work-log entries yet.</p>
+          <p className="mt-2 text-sm leading-6 text-zinc-500">{role === "technician" && !isResolved ? "Record the first supported observation, action, measurement, or escalation." : "Technician activity will appear here as it is recorded."}</p>
         </div>
       )}
 
       {!isLoading && entries.length > 0 && (
         <ol className="relative mt-7 space-y-5 border-l border-white/10 pl-6">
           {entries.map((entry) => (
-            <li key={entry.id} className="relative rounded-2xl border border-white/10 bg-[#091522] p-5">
-              <span aria-hidden="true" className={`absolute -left-[31px] top-6 size-3 rounded-full border-2 border-[#101e2d] ${entry.entry_type === "resolution" ? "bg-violet-300" : entry.entry_type === "escalation" ? "bg-amber-300" : "bg-cyan-300"}`} />
+            <li key={entry.id} className="relative rounded-lg border border-white/10 bg-[#111315] p-5">
+              <span aria-hidden="true" className={`absolute -left-[31px] top-6 size-3 rounded-full border-2 border-[#151719] ${entry.entry_type === "resolution" ? "bg-emerald-300" : entry.entry_type === "escalation" ? "bg-amber-300" : "bg-teal-300"}`} />
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-semibold text-slate-200">{WORK_LOG_TYPE_LABELS[entry.entry_type]}</span>
-                <span className="text-xs text-slate-500">{formatReportDate(entry.created_at)}</span>
+                <span className="rounded-full border border-white/10 px-2.5 py-1 text-xs font-semibold text-zinc-200">{WORK_LOG_TYPE_LABELS[entry.entry_type]}</span>
+                <span className="text-xs text-zinc-500">{formatReportDate(entry.created_at)}</span>
               </div>
-              <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200">{entry.note}</p>
-              <p className="mt-3 text-xs text-slate-500">Recorded by {entry.author_name || "Technician"}</p>
+              <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-zinc-200">{entry.note}</p>
+              <p className="mt-3 text-xs text-zinc-500">Recorded by {entry.author_name || "Technician"}</p>
             </li>
           ))}
         </ol>
       )}
 
       {role === "technician" && isResolved && (
-        <div className="mt-7 rounded-2xl border border-violet-300/15 bg-violet-300/5 p-5">
-          <h3 className="font-semibold text-violet-100">Fault report closed</h3>
-          <p className="mt-2 text-sm leading-6 text-slate-400">Resolution is recorded. Further work-log entries and another resolution are disabled to preserve this audit history.</p>
-          <button type="button" disabled className="mt-4 rounded-xl border border-violet-300/20 px-4 py-3 text-sm font-bold text-violet-100/50 disabled:cursor-not-allowed">Report resolved</button>
+        <div className="mt-7 rounded-lg border border-emerald-300/15 bg-emerald-300/5 p-5">
+          <h3 className="font-semibold text-emerald-100">Fault report closed</h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-400">Resolution is recorded. Further work-log entries and another resolution are disabled to preserve this audit history.</p>
+          <button type="button" disabled className="mt-4 rounded-md border border-emerald-300/20 px-4 py-3 text-sm font-bold text-emerald-100/50 disabled:cursor-not-allowed">Report resolved</button>
         </div>
       )}
 
       {role === "technician" && !isResolved && (
         <div className="mt-8 grid gap-6 border-t border-white/10 pt-7 xl:grid-cols-2">
-          <div className="rounded-2xl border border-cyan-300/15 bg-[#091522] p-5">
+          <div className="rounded-lg border border-teal-300/15 bg-[#111315] p-5">
             <h3 className="text-lg font-semibold text-white">Add log entry</h3>
-            <label className="mt-5 block text-sm font-medium text-slate-200">
+            <label className="mt-5 block text-sm font-medium text-zinc-200">
               Entry type
-              <select value={entryType} onChange={(event) => setEntryType(event.target.value as (typeof MANUAL_WORK_LOG_OPTIONS)[number])} disabled={isAdding || isResolving} className="mt-2 w-full rounded-xl border border-white/10 bg-[#07111c] px-4 py-3 text-sm text-white outline-none focus:border-cyan-300/60">
+              <select value={entryType} onChange={(event) => setEntryType(event.target.value as (typeof MANUAL_WORK_LOG_OPTIONS)[number])} disabled={isAdding || isResolving} className="mt-2 w-full rounded-md border border-white/10 bg-[#0d0f10] px-4 py-3 text-sm text-white outline-none focus:border-teal-300/60">
                 {MANUAL_WORK_LOG_OPTIONS.map((option) => <option key={option} value={option}>{WORK_LOG_TYPE_LABELS[option]}</option>)}
               </select>
             </label>
-            <label className="mt-4 block text-sm font-medium text-slate-200">
+            <label className="mt-4 block text-sm font-medium text-zinc-200">
               Note <span className="text-amber-200">*</span>
-              <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={4000} rows={5} disabled={isAdding || isResolving} placeholder="Record what was observed, measured, completed, or escalated." className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-[#07111c] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/60" />
+              <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={4000} rows={5} disabled={isAdding || isResolving} placeholder="Record what was observed, measured, completed, or escalated." className="mt-2 w-full resize-y rounded-md border border-white/10 bg-[#0d0f10] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-zinc-600 focus:border-teal-300/60" />
             </label>
             <div className="mt-4 flex items-center justify-between gap-3">
-              <span className="text-xs text-slate-600">{note.length}/4000</span>
-              <button type="button" onClick={() => void addEntry()} disabled={!note.trim() || isAdding || isResolving} className="rounded-xl bg-cyan-300 px-4 py-3 text-sm font-bold text-[#07111c] hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">{isAdding ? "Recording..." : "Add log entry"}</button>
+              <span className="text-xs text-zinc-600">{note.length}/4000</span>
+              <button type="button" onClick={() => void addEntry()} disabled={!note.trim() || isAdding || isResolving} className="rounded-md bg-teal-300 px-4 py-3 text-sm font-bold text-[#0d0f10] hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-40">{isAdding ? "Recording..." : "Add log entry"}</button>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-violet-300/20 bg-violet-300/5 p-5">
+          <div className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.04] p-5">
             <h3 className="text-lg font-semibold text-white">Resolve fault report</h3>
-            <p className="mt-2 text-sm leading-6 text-slate-400">Resolution records the final outcome, creates an immutable resolution entry, and closes this report to further activity.</p>
-            <label className="mt-5 block text-sm font-medium text-slate-200">
+            <p className="mt-2 text-sm leading-6 text-zinc-400">Resolution records the final outcome, creates an immutable resolution entry, and closes this report to further activity.</p>
+            <label className="mt-5 block text-sm font-medium text-zinc-200">
               Resolution summary <span className="text-amber-200">*</span>
-              <textarea value={resolutionSummary} onChange={(event) => setResolutionSummary(event.target.value)} maxLength={4000} rows={5} disabled={isResolving || isAdding} placeholder="Describe the verified outcome and any relevant follow-up." className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-[#07111c] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-violet-300/60" />
+              <textarea value={resolutionSummary} onChange={(event) => setResolutionSummary(event.target.value)} maxLength={4000} rows={5} disabled={isResolving || isAdding} placeholder="Describe the verified outcome and any relevant follow-up." className="mt-2 w-full resize-y rounded-md border border-white/10 bg-[#0d0f10] px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-zinc-600 focus:border-emerald-300/60" />
             </label>
-            <label className="mt-4 flex gap-3 rounded-xl border border-violet-300/15 bg-[#07111c]/60 p-4 text-sm leading-6 text-slate-300">
-              <input type="checkbox" checked={resolutionConfirmed} onChange={(event) => setResolutionConfirmed(event.target.checked)} disabled={isResolving || isAdding} className="mt-1 size-4 shrink-0 accent-violet-300" />
+            <label className="mt-4 flex gap-3 rounded-md border border-emerald-300/15 bg-[#0d0f10]/60 p-4 text-sm leading-6 text-zinc-300">
+              <input type="checkbox" checked={resolutionConfirmed} onChange={(event) => setResolutionConfirmed(event.target.checked)} disabled={isResolving || isAdding} className="mt-1 size-4 shrink-0 accent-emerald-300" />
               <span>I confirm this summary records the outcome and resolving will close the report.</span>
             </label>
-            <button type="button" onClick={() => void resolveReport()} disabled={!resolutionSummary.trim() || !resolutionConfirmed || isResolving || isAdding} className="mt-4 w-full rounded-xl bg-violet-300 px-4 py-3 text-sm font-bold text-[#07111c] hover:bg-violet-200 disabled:cursor-not-allowed disabled:opacity-40">{isResolving ? "Resolving report..." : "Resolve and close report"}</button>
+            <button type="button" onClick={() => void resolveReport()} disabled={!resolutionSummary.trim() || !resolutionConfirmed || isResolving || isAdding} className="mt-4 w-full rounded-md bg-emerald-300 px-4 py-3 text-sm font-bold text-[#0d0f10] hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-40">{isResolving ? "Resolving report..." : "Resolve and close report"}</button>
           </div>
         </div>
       )}
@@ -746,48 +746,78 @@ function CaseWorkspace({
   onReportResolved: (report: FaultReport) => void;
 }) {
   const isResolved = report.status === "resolved";
+  const [activeTab, setActiveTab] = useState<"overview" | "evidence" | "guidance" | "work-log" | "photos">("overview");
+  const tabs = [
+    { id: "overview", label: "Overview" },
+    { id: "evidence", label: "Evidence" },
+    { id: "guidance", label: "Guidance" },
+    { id: "work-log", label: "Work Log" },
+    { id: "photos", label: "Photos" },
+  ] as const;
   return (
-    <div className="space-y-8">
-      <section className={`rounded-3xl bg-[#101e2d]/95 p-6 sm:p-8 ${isResolved ? "border border-violet-300/20" : "border border-emerald-300/20"}`}>
+    <div>
+      <section className={`rounded-lg border bg-[#151719] p-5 sm:p-6 ${isResolved ? "border-emerald-300/25" : "border-red-300/25"}`}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${isResolved ? "text-violet-200" : "text-emerald-300"}`}>{isResolved ? "Resolved fault report" : "Active troubleshooting case"}</p>
-            <h1 className="mt-3 text-3xl font-semibold text-white">{report.equipment_name}</h1>
-            <p className="mt-2 text-sm text-slate-400">Created {formatReportDate(report.created_at)}{report.technician_name ? ` by ${report.technician_name}` : ""}</p>
+            <p className={`text-xs font-semibold uppercase tracking-[0.16em] ${isResolved ? "text-emerald-300" : "text-red-300"}`}>{isResolved ? "Resolved fault report" : "Active fault report"}</p>
+            <h1 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">{report.equipment_name}</h1>
+            <p className="mt-2 text-sm text-zinc-400">Created {formatReportDate(report.created_at)}{report.technician_name ? ` by ${report.technician_name}` : ""}</p>
           </div>
-          <span className={isResolved ? "rounded-full border border-violet-300/25 bg-violet-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-violet-100" : "rounded-full border border-emerald-300/25 bg-emerald-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-emerald-200"}>{isResolved ? "Resolved" : "Active"}</span>
+          <span className={`inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] ${isResolved ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-200" : "border-red-300/30 bg-red-300/10 text-red-200"}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${isResolved ? "bg-emerald-300" : "bg-red-300"}`} />{isResolved ? "Resolved" : "Active"}</span>
         </div>
-        {role === "admin" && <p className="mt-5 rounded-xl border border-cyan-300/15 bg-cyan-300/5 px-4 py-3 text-sm text-cyan-100">Read-only administrator view for this workspace report.</p>}
-        {isResolved && <p className="mt-5 rounded-xl border border-violet-300/20 bg-violet-300/5 px-4 py-3 text-sm leading-6 text-violet-100">Read-only resolved case. Its outcome, work log, citations, and saved guidance are preserved as recorded and cannot be edited, reopened, or deleted here.</p>}
-        <div className="mt-7"><ReportDetails report={report} /></div>
+        <dl className="mt-5 grid gap-px overflow-hidden rounded-md border border-white/10 bg-white/10 sm:grid-cols-4">
+          <div className="bg-[#111315] p-3"><dt className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Equipment</dt><dd className="mt-1 truncate text-sm font-medium text-zinc-200">{report.equipment_name}</dd></div>
+          <div className="bg-[#111315] p-3"><dt className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Fault code</dt><dd className="mt-1 text-sm font-medium text-zinc-200">{report.fault_code || "Not provided"}</dd></div>
+          <div className="bg-[#111315] p-3"><dt className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Owner</dt><dd className="mt-1 truncate text-sm font-medium text-zinc-200">{report.technician_name || "Technician"}</dd></div>
+          <div className="bg-[#111315] p-3"><dt className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Safety Gate</dt><dd className="mt-1 text-sm font-medium text-amber-200">Completed</dd></div>
+        </dl>
+        {role === "admin" && <p className="mt-4 rounded-md border border-teal-300/20 bg-teal-300/[0.06] px-4 py-3 text-sm text-teal-100"><strong>Read-only administrator view.</strong> Technician activity and report records cannot be changed here.</p>}
+        {isResolved && <p className="mt-4 rounded-md border border-emerald-300/20 bg-emerald-300/[0.06] px-4 py-3 text-sm leading-6 text-emerald-100">This case is closed. Its outcome, work log, citations, and saved guidance are preserved as recorded.</p>}
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="completed-safety-title">
+      <div className="mt-5 overflow-x-auto border-b border-white/10" role="tablist" aria-label="Fault report sections">
+        <div className="flex min-w-max gap-1">
+          {tabs.map((tab) => (
+            <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} aria-controls={`case-tab-${tab.id}`} onClick={() => setActiveTab(tab.id)} className={`cursor-pointer border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${activeTab === tab.id ? "border-teal-300 text-teal-100" : "border-transparent text-zinc-500 hover:border-white/20 hover:text-zinc-200"}`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div id="case-tab-overview" hidden={activeTab !== "overview"} role="tabpanel" aria-label="Overview" className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,0.7fr)]">
+      <section className="rounded-lg border border-white/10 bg-[#151719] p-5 sm:p-6" aria-labelledby="report-overview-title">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-300">Case record</p>
+        <h2 id="report-overview-title" className="mt-2 text-xl font-semibold text-white">Report overview</h2>
+        <div className="mt-5"><ReportDetails report={report} /></div>
+      </section>
+      <section className="rounded-lg border border-amber-300/20 bg-[#151719] p-5 sm:p-6" aria-labelledby="completed-safety-title">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Pre-task record</p>
-            <h2 id="completed-safety-title" className="mt-2 text-2xl font-semibold text-white">Safety Gate completed</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-300">Pre-task record</p>
+            <h2 id="completed-safety-title" className="mt-2 text-xl font-semibold text-white">Safety Gate completed</h2>
           </div>
-          <span className="text-xs text-slate-500">{report.activated_at ? formatReportDate(report.activated_at) : "Completion recorded"}</span>
+          <span className="text-xs text-zinc-500">{report.activated_at ? formatReportDate(report.activated_at) : "Completion recorded"}</span>
         </div>
-        <ul className="mt-6 grid gap-3 md:grid-cols-2">
+        <ul className="mt-5 space-y-3">
           {SAFETY_ACKNOWLEDGEMENTS.map((item) => (
-            <li key={item.key} className="flex gap-3 rounded-xl border border-emerald-300/15 bg-emerald-300/5 p-4 text-sm leading-6 text-slate-200">
-              <span aria-hidden="true" className="mt-0.5 text-emerald-300">✓</span>
+            <li key={item.key} className="flex gap-3 rounded-md border border-amber-300/15 bg-amber-300/[0.04] p-3 text-sm leading-6 text-zinc-300">
+              <span aria-hidden="true" className="mt-0.5 font-bold text-amber-300">OK</span>
               <span>{item.label}</span>
             </li>
           ))}
         </ul>
-        <p className="mt-5 text-xs leading-6 text-slate-500">These acknowledgements record the pre-task gate. They do not replace current site procedures, permits, formal LOTO or isolation requirements, or professional judgment. Historical cases and automated output never override current approved procedures.</p>
+        <p className="mt-4 text-xs leading-6 text-zinc-500">These acknowledgements do not replace current site procedures, permits, formal LOTO or isolation requirements, or professional judgment.</p>
       </section>
+      </div>
 
-      <AttachedPhotosSection report={report} role={role} workspaceId={workspaceId} />
+      <div id="case-tab-photos" hidden={activeTab !== "photos"} role="tabpanel" aria-label="Photos" className="mt-6"><AttachedPhotosSection report={report} role={role} workspaceId={workspaceId} /></div>
 
-      {!isResolved && <ApprovedEvidence workspaceId={workspaceId} reportId={report.id} />}
+      <div id="case-tab-evidence" hidden={activeTab !== "evidence"} role="tabpanel" aria-label="Evidence" className="mt-6">{!isResolved ? <ApprovedEvidence workspaceId={workspaceId} reportId={report.id} /> : <section className="rounded-lg border border-white/10 bg-[#151719] p-6"><h2 className="text-xl font-semibold text-white">Approved evidence</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">This resolved case is read-only. Review saved citations and open each approved source from the Guidance tab.</p></section>}</div>
 
-      <GuidancePlanSection workspaceId={workspaceId} reportId={report.id} role={role} canGenerate={role === "technician" && !isResolved} />
+      <div id="case-tab-guidance" hidden={activeTab !== "guidance"} role="tabpanel" aria-label="Guidance" className="mt-6"><GuidancePlanSection workspaceId={workspaceId} reportId={report.id} role={role} canGenerate={role === "technician" && !isResolved} /></div>
 
-      <WorkLogSection report={report} role={role} workspaceId={workspaceId} onReportResolved={onReportResolved} />
+      <div id="case-tab-work-log" hidden={activeTab !== "work-log"} role="tabpanel" aria-label="Work Log" className="mt-6"><WorkLogSection report={report} role={role} workspaceId={workspaceId} onReportResolved={onReportResolved} /></div>
     </div>
   );
 }
@@ -866,14 +896,14 @@ export function FaultCase({
   }
 
   if (isLoading) {
-    return <p role="status" className="rounded-2xl border border-white/10 bg-[#101e2d] p-6 text-sm text-slate-400">Loading fault report...</p>;
+    return <p role="status" className="rounded-lg border border-white/10 bg-[#151719] p-6 text-sm text-zinc-400">Loading fault report...</p>;
   }
 
   if (error && !report) {
     return (
-      <div role="alert" className="rounded-2xl border border-amber-300/25 bg-amber-300/5 p-6 text-sm text-amber-100">
+      <div role="alert" className="rounded-lg border border-red-300/25 bg-red-300/5 p-6 text-sm text-red-100">
         <p>{error}</p>
-        <button type="button" onClick={() => void loadReport()} className="mt-4 font-semibold text-cyan-200 hover:text-cyan-100">Try again</button>
+        <button type="button" onClick={() => void loadReport()} className="mt-4 font-semibold text-teal-200 hover:text-teal-100">Try again</button>
       </div>
     );
   }
@@ -886,14 +916,15 @@ export function FaultCase({
   if (role === "admin") {
     return (
       <div className="space-y-8">
-        <section className="rounded-3xl border border-amber-300/20 bg-[#101e2d]/95 p-6 sm:p-8">
+        <section className="rounded-lg border border-amber-300/20 bg-[#151719]/95 p-6 sm:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">Read-only administrator view</p>
-              <h1 className="mt-3 text-3xl font-semibold text-white">Safety Gate pending</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">This technician report remains Draft. Only the technician who created it can complete the mandatory acknowledgements and activate the case.</p>
+              <h1 className="mt-3 text-3xl font-semibold text-white">{report.equipment_name}</h1>
+              <p className="mt-2 text-sm font-medium text-amber-100">Safety Gate pending</p>
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-300">This technician report remains Draft. Only the technician who created it can complete the mandatory acknowledgements and activate the case.</p>
             </div>
-            <span className="rounded-full border border-amber-300/25 bg-amber-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-amber-100">Draft</span>
+            <span className="rounded-md border border-amber-300/25 bg-amber-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-amber-100">Draft</span>
           </div>
           <div className="mt-7"><ReportDetails report={report} /></div>
         </section>
@@ -904,43 +935,44 @@ export function FaultCase({
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-amber-300/20 bg-[#101e2d]/95 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.28)] sm:p-8">
+      <section className="rounded-lg border border-amber-300/20 bg-[#151719]/95 p-6 shadow-sm sm:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-200">Mandatory pre-task gate</p>
-            <h1 className="mt-3 text-3xl font-semibold text-white">Safety Gate</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">Review the fault intake and personally complete every acknowledgement before beginning the case.</p>
+            <h1 className="mt-3 text-3xl font-semibold text-white">{report.equipment_name}</h1>
+            <p className="mt-2 text-sm font-medium text-amber-100">Safety Gate pending</p>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-300">Review the fault intake and personally complete every acknowledgement before beginning the case.</p>
           </div>
-          <span className="rounded-full border border-amber-300/25 bg-amber-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-amber-100">Draft</span>
+          <span className="rounded-md border border-amber-300/25 bg-amber-300/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.12em] text-amber-100">Draft</span>
         </div>
 
         <div className="mt-7"><ReportDetails report={report} /></div>
 
-        <div className="mt-8 rounded-2xl border border-red-300/20 bg-red-300/5 p-5">
-          <h2 className="font-semibold text-red-100">Site procedures remain controlling</h2>
-          <p className="mt-2 text-sm leading-7 text-red-100/80">This Safety Gate records your acknowledgement. It is not a replacement for current site procedures, work permits, authorization requirements, formal LOTO or isolation procedures, hazard assessments, PPE requirements, or professional judgment. Historical cases and automated output never override current approved procedures. Stop and escalate whenever conditions are unsafe or uncertain.</p>
+        <div className="mt-8 rounded-lg border border-amber-300/25 bg-amber-300/[0.06] p-5">
+          <h2 className="font-semibold text-amber-100">Site procedures remain controlling</h2>
+          <p className="mt-2 text-sm leading-7 text-amber-100/80">This Safety Gate records your acknowledgement. It is not a replacement for current site procedures, work permits, authorization requirements, formal LOTO or isolation procedures, hazard assessments, PPE requirements, or professional judgment. Historical cases and automated output never override current approved procedures. Stop and escalate whenever conditions are unsafe or uncertain.</p>
         </div>
 
         <fieldset className="mt-7 space-y-3">
           <legend className="mb-4 text-lg font-semibold text-white">Required acknowledgements</legend>
           {SAFETY_ACKNOWLEDGEMENTS.map((item) => (
-            <label key={item.key} className="flex cursor-pointer gap-4 rounded-2xl border border-white/10 bg-[#091522] p-5 transition hover:border-cyan-300/30">
+            <label key={item.key} className="flex cursor-pointer gap-4 rounded-lg border border-white/10 bg-[#111315] p-5 transition hover:border-teal-300/30">
               <input
                 type="checkbox"
                 checked={acknowledgements[item.key]}
                 onChange={(event) => setAcknowledgements((current) => ({ ...current, [item.key]: event.target.checked }))}
                 disabled={isActivating}
-                className="mt-1 size-5 shrink-0 accent-cyan-300"
+                className="mt-1 size-5 shrink-0 accent-teal-300"
               />
-              <span className="text-sm leading-7 text-slate-200">{item.label}</span>
+              <span className="text-sm leading-7 text-zinc-200">{item.label}</span>
             </label>
           ))}
         </fieldset>
 
-        {error && <p role="alert" className="mt-5 rounded-xl border border-amber-300/25 bg-amber-300/5 px-4 py-3 text-sm text-amber-100">{error}</p>}
+        {error && <p role="alert" className="mt-5 rounded-md border border-red-300/25 bg-red-300/5 px-4 py-3 text-sm text-red-100">{error}</p>}
         <div className="mt-7 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
-          <p className="text-xs text-slate-500">All four acknowledgements are required to change this report from Draft to Active.</p>
-          <button type="button" onClick={() => void activateCase()} disabled={!allAcknowledged || isActivating} className="rounded-xl bg-cyan-300 px-5 py-3 text-sm font-bold text-[#07111c] hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">{isActivating ? "Activating case..." : "Acknowledge and begin case"}</button>
+          <p className="text-xs text-zinc-500">All four acknowledgements are required to change this report from Draft to Active.</p>
+          <button type="button" onClick={() => void activateCase()} disabled={!allAcknowledged || isActivating} className="rounded-md bg-teal-300 px-5 py-3 text-sm font-bold text-[#0d0f10] hover:bg-teal-200 disabled:cursor-not-allowed disabled:opacity-40">{isActivating ? "Activating case..." : "Acknowledge and begin case"}</button>
         </div>
       </section>
       <AttachedPhotosSection report={report} role={role} workspaceId={workspaceId} />

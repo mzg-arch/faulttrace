@@ -1,12 +1,12 @@
 import Link from "next/link";
 
-export function BrandMark() {
+export function BrandMark({ href = "/", compact = false }: { href?: string; compact?: boolean }) {
   return (
-    <Link href="/" className="inline-flex items-center gap-3 text-white transition hover:text-cyan-100">
-      <span className="flex size-10 items-center justify-center rounded-xl border border-cyan-300/30 bg-cyan-300/10 shadow-[0_0_22px_rgba(87,205,230,0.12)]">
+    <Link href={href} className="inline-flex cursor-pointer items-center gap-3 text-white transition-colors hover:text-teal-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal-300">
+      <span className="flex size-9 items-center justify-center rounded-md border border-teal-300/25 bg-teal-300/10">
         <svg
           aria-hidden="true"
-          className="size-6 text-cyan-300"
+          className="size-5 text-teal-300"
           fill="none"
           viewBox="0 0 24 24"
         >
@@ -19,9 +19,7 @@ export function BrandMark() {
           />
         </svg>
       </span>
-      <span className="text-xl font-semibold tracking-tight">
-        Fault<span className="text-cyan-300">Trace</span>
-      </span>
+      {!compact && <span className="text-lg font-semibold tracking-tight">Fault<span className="text-teal-300">Trace</span></span>}
     </Link>
   );
 }

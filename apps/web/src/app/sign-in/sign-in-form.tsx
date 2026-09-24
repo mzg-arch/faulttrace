@@ -78,7 +78,7 @@ export function SignInForm() {
   return (
     <form className="mt-8 space-y-5" onSubmit={handleSubmit} noValidate aria-busy={isSubmitting}>
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-slate-200">
+        <label htmlFor="email" className="block text-sm font-medium text-zinc-200">
           Work email
         </label>
         <input
@@ -97,7 +97,7 @@ export function SignInForm() {
           aria-describedby={fieldErrors.email ? "email-error" : undefined}
           disabled={isSubmitting}
           placeholder="you@company.com"
-          className="mt-2 w-full rounded-xl border border-white/15 bg-[#091522] px-4 py-3.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/20 disabled:opacity-60"
+          className="mt-2 w-full rounded-md border border-white/15 bg-[#111315] px-4 py-3.5 text-white outline-none placeholder:text-zinc-500 focus:border-teal-300 focus:ring-2 focus:ring-teal-300/20 disabled:opacity-60"
         />
         {fieldErrors.email && (
           <p id="email-error" className="mt-2 text-sm text-amber-200">
@@ -107,7 +107,7 @@ export function SignInForm() {
       </div>
 
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-slate-200">
+        <label htmlFor="password" className="block text-sm font-medium text-zinc-200">
           Password
         </label>
         <input
@@ -125,7 +125,7 @@ export function SignInForm() {
           aria-describedby={fieldErrors.password ? "password-error" : undefined}
           disabled={isSubmitting}
           placeholder="Enter your password"
-          className="mt-2 w-full rounded-xl border border-white/15 bg-[#091522] px-4 py-3.5 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300 focus:ring-2 focus:ring-cyan-300/20 disabled:opacity-60"
+          className="mt-2 w-full rounded-md border border-white/15 bg-[#111315] px-4 py-3.5 text-white outline-none placeholder:text-zinc-500 focus:border-teal-300 focus:ring-2 focus:ring-teal-300/20 disabled:opacity-60"
         />
         {fieldErrors.password && (
           <p id="password-error" className="mt-2 text-sm text-amber-200">
@@ -135,7 +135,7 @@ export function SignInForm() {
       </div>
 
       {authError && (
-        <p role="alert" className="rounded-xl border border-amber-300/30 bg-amber-300/10 px-4 py-3 text-sm leading-6 text-amber-100">
+        <p role="alert" className="rounded-md border border-red-300/30 bg-red-300/10 px-4 py-3 text-sm leading-6 text-red-100">
           {authError}
         </p>
       )}
@@ -143,11 +143,11 @@ export function SignInForm() {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-300 px-4 py-3.5 text-sm font-bold text-[#07111c] transition hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 disabled:cursor-wait disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-2 rounded-md bg-teal-300 px-4 py-3.5 text-sm font-bold text-[#0d0f10] transition hover:bg-teal-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300 disabled:cursor-wait disabled:opacity-60"
       >
         {isSubmitting ? "Signing in..." : "Sign in to FaultTrace"}
       </button>
-      <p className="text-center text-xs leading-5 text-slate-500">
+      <p className="text-center text-xs leading-5 text-zinc-500">
         Access is limited to accounts created by your maintenance team.
       </p>
     </form>

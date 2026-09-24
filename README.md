@@ -11,7 +11,7 @@ supabase/migrations/  PostgreSQL schema and row-level security
 .vscode/              Shared editor settings
 ```
 
-The working prototype supports email/password sign-in, invitation password setup, a role-aware operational dashboard, equipment management, a private approved PDF library, lexical evidence retrieval with page citations, evidence-grounded Gemini guidance, fault intake with a required Safety Gate, private report photo attachments, append-only work logs with technician-controlled resolution, and searchable read-only resolved case history with equipment Quick Recall. Administrators can review workspace reports and technician activity but cannot change them. OCR, photo analysis, embeddings, and LangGraph remain later integrations.
+The working prototype supports secure company workspace onboarding, email/password sign-in, invitation password setup, a role-aware operational dashboard, equipment management, a private approved PDF library, lexical evidence retrieval with page citations, evidence-grounded Gemini guidance, fault intake with a required Safety Gate, private report photo attachments, append-only work logs with technician-controlled resolution, and searchable read-only resolved case history with equipment Quick Recall. Administrators can review workspace reports and technician activity but cannot change them. OCR, photo analysis, embeddings, and LangGraph remain later integrations.
 
 ## Local setup
 
@@ -26,15 +26,15 @@ The web app uses port 3000 by default. `/sign-in` submits credentials to Supabas
 
 ## Data access model
 
-Supabase Auth owns sign-in identities. A profile is created for each new Auth user. Workspace membership carries the `admin` or `technician` role; there is no public self-enrollment policy. A trusted bootstrap process creates the first workspace administrator. Later invitations are authorized by the FastAPI service, sent through Supabase Auth, and finalized into the selected workspace role by server-only logic.
+Supabase Auth owns sign-in identities. A profile is created for each new Auth user. Workspace membership carries the `admin` or `technician` role. Public company onboarding can create only a new workspace and its first Administrator invitation through FastAPI. It cannot create a Technician. Later invitations are authorized by the FastAPI service and finalized into the selected workspace role by server-only logic. The browser cannot insert workspaces, profiles, memberships, or invitations directly.
 
-For the first workspace, follow [First test admin setup](docs/first-admin-setup.md). Then follow [Admin invitations setup](docs/admin-invitations-setup.md) before using Team / Access. Keep the Supabase secret key in the API environment only. Disable public signups in the Supabase Auth project settings before using the app with real accounts.
+For the product flow, apply the invitation and onboarding migrations, then follow [Company workspace onboarding](docs/company-workspace-onboarding.md). [First test admin setup](docs/first-admin-setup.md) remains a development/bootstrap path for local setup and recovery. Follow [Admin invitations setup](docs/admin-invitations-setup.md) before using Team / Access. Keep the Supabase secret key in the API environment only, and keep public Auth signups disabled.
 
 Feature setup and demo flows are documented separately, including [Work Log and Fault Resolution](docs/work-log-resolution.md), [Resolved Case History and Quick Recall](docs/resolved-case-history.md), [Private Fault Report Photo Attachments](docs/fault-report-photo-attachments.md), and the [Role-Aware Operational Dashboard](docs/operational-dashboard.md). Apply each pending Supabase migration manually in timestamp order before testing the corresponding feature.
 
 The initial migration enables RLS and explicit client grants on every application table. Technicians can read workspace equipment and approved documents, and can save cases under their own identity. Shared cases are visible to other workspace members; private cases remain visible to their author and admins. Admins manage equipment and document metadata. Source files live in a private Supabase Storage bucket. The migration enables pgvector, while the embedding table and dimensions wait for the retrieval design.
 
-The initial migration has been applied to the Supabase project, as confirmed by the project owner. The invitation migration is intentionally not applied automatically; run it manually as described in the setup guide.
+Migrations are never applied automatically. Apply pending files from `supabase/migrations` manually in timestamp order, including `202609240001_company_workspace_onboarding.sql` before testing `/create-workspace`.
 
 ## Planned deployment
 

@@ -14,9 +14,12 @@ export default async function ResolvedReportPage({
 
   return (
     <FaultReportShell
+      role={access.role}
       email={access.email}
+      displayName={access.displayName}
       workspaceName={access.workspace.name}
       sectionLabel="Resolved history"
+      sectionHref="/dashboard/resolved-history"
     >
       <FaultCase
         workspaceId={access.workspace.id}

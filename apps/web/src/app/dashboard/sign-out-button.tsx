@@ -29,16 +29,16 @@ export function SignOutButton() {
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div className="flex flex-col items-stretch gap-1">
       <button
         type="button"
         onClick={handleSignOut}
         disabled={isSigningOut}
-        className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-cyan-300/50 hover:text-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 disabled:cursor-wait disabled:opacity-60"
+        className="w-full cursor-pointer rounded-md border border-white/10 px-3 py-2 text-left text-sm font-medium text-zinc-400 transition-colors hover:border-white/20 hover:bg-white/[0.04] hover:text-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-300 disabled:cursor-wait disabled:opacity-60"
       >
         {isSigningOut ? "Signing out..." : "Sign out"}
       </button>
-      {error && <p role="alert" className="text-xs text-amber-200">{error}</p>}
+      {error && <p role="alert" className="text-xs text-red-200">{error}</p>}
     </div>
   );
 }
