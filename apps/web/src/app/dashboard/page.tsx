@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
@@ -8,64 +7,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DocumentManagement } from "./document-management";
 import { EquipmentManagement } from "./equipment-management";
 import { FaultReportsOverview } from "./fault-reports-overview";
+import { OperationalDashboard } from "./operational-dashboard";
 import { SignOutButton } from "./sign-out-button";
 import { TeamAccess } from "./team-access";
 import { TechnicianDocuments } from "./technician-documents";
 import { TechnicianEquipment } from "./technician-equipment";
-
-const adminAreas = [
-  {
-    number: "01",
-    title: "Team / Access",
-    description: "Manage the people approved to work in this workspace.",
-    status: "Available",
-  },
-  {
-    number: "02",
-    title: "Equipment",
-    description: "Organize the assets and equipment identifiers your team maintains.",
-    status: "Available",
-  },
-  {
-    number: "03",
-    title: "Documents",
-    description: "Curate approved manuals, diagrams, bulletins, and fault-code sheets.",
-    status: "Available",
-  },
-  {
-    number: "04",
-    title: "Fault reports",
-    description: "Review technician intakes, work logs, active cases, and resolutions.",
-    status: "Available",
-  },
-];
-
-const technicianAreas = [
-  {
-    number: "01",
-    title: "Equipment",
-    description: "Choose an asset and review its approved information.",
-    status: "Available",
-  },
-  {
-    number: "02",
-    title: "Documents",
-    description: "Search and open approved maintenance sources for your workspace.",
-    status: "Available",
-  },
-  {
-    number: "03",
-    title: "Fault reports",
-    description: "Complete the Safety Gate, record work, and resolve owned fault reports.",
-    status: "Available",
-  },
-  {
-    number: "04",
-    title: "Resolved history",
-    description: "Review completed reports, recorded outcomes, and supporting case records.",
-    status: "Available",
-  },
-];
 
 function DashboardShell({
   email,
@@ -191,7 +137,6 @@ export default async function DashboardPage() {
   }
 
   const isAdmin = membership.role === "admin";
-  const areas = isAdmin ? adminAreas : technicianAreas;
   const displayName = profileResult.data.display_name.trim() || email;
 
   return (
@@ -210,29 +155,7 @@ export default async function DashboardPage() {
         </p>
       </section>
 
-      <section
-        aria-label={isAdmin ? "Administration areas" : "Technician areas"}
-        className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-      >
-        {areas.map((area) => (
-          <article key={area.number} className="rounded-2xl border border-white/10 bg-[#101e2d]/85 p-6">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-cyan-300">{area.number}</span>
-              <span className={area.status === "Available" ? "text-xs font-medium uppercase tracking-[0.12em] text-emerald-300" : "text-xs font-medium uppercase tracking-[0.12em] text-slate-500"}>{area.status}</span>
-            </div>
-            <h2 className="mt-8 text-xl font-semibold text-white">{area.title}</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-400">{area.description}</p>
-          </article>
-        ))}
-      </section>
-
-      <section className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-violet-300/15 bg-violet-300/5 p-5" aria-label="Resolved case history">
-        <div>
-          <h2 className="font-semibold text-white">Resolved case history</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-400">Search workspace outcomes and open complete cases in read-only mode.</p>
-        </div>
-        <Link href="/dashboard/resolved-history" className="rounded-xl border border-violet-300/25 px-4 py-3 text-sm font-semibold text-violet-100 hover:border-violet-300/60">Browse resolved history</Link>
-      </section>
+      <OperationalDashboard workspaceId={workspaceResult.data.id} role={membership.role} />
 
       {isAdmin ? (
         <>

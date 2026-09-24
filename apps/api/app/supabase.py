@@ -477,6 +477,32 @@ class SupabaseGateway:
         )
         return response.json()
 
+    async def list_recent_fault_report_activity(
+        self,
+        workspace_id: str,
+        *,
+        report_ids: list[str] | None,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        params = {
+            "select": "id,fault_report_id,author_user_id,entry_type,note,created_at",
+            "workspace_id": f"eq.{workspace_id}",
+            "order": "created_at.desc,id.desc",
+            "limit": str(limit),
+        }
+        if report_ids is not None:
+            if not report_ids:
+                return []
+            params["fault_report_id"] = f"in.({','.join(report_ids)})"
+        response = await self._request(
+            "GET",
+            "/rest/v1/fault_report_work_logs",
+            key=self.secret_key,
+            params=params,
+            operation="list_recent_fault_report_activity",
+        )
+        return response.json()
+
     async def create_fault_report_work_log(
         self,
         workspace_id: str,

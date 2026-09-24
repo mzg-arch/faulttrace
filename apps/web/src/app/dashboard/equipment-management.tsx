@@ -188,7 +188,7 @@ export function EquipmentManagement({ workspaceId }: { workspaceId: string }) {
   }
 
   return (
-    <section className="my-10 rounded-3xl border border-cyan-300/15 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="equipment-management-title">
+    <section id="equipment" className="my-10 scroll-mt-6 rounded-3xl border border-cyan-300/15 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="equipment-management-title">
       <div className="flex flex-col gap-3 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Admin controls</p>

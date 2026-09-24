@@ -37,6 +37,55 @@ export type ResolvedReportSummary = {
   report_owner: string | null;
 };
 
+export type DashboardReportSummary = {
+  id: string;
+  equipment_id: string;
+  equipment_name: string;
+  equipment_asset_tag: string | null;
+  fault_code: string | null;
+  symptom: string;
+  status: FaultReportStatus;
+  owner_user_id: string;
+  owner_name: string | null;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  resolution_summary: string | null;
+};
+
+export type DashboardAffectedEquipment = {
+  id: string;
+  name: string;
+  asset_tag: string | null;
+  location: string | null;
+  active_report_count: number;
+};
+
+export type DashboardActivity = {
+  id: string;
+  fault_report_id: string;
+  equipment_name: string;
+  equipment_asset_tag: string | null;
+  report_status: FaultReportStatus;
+  entry_type: WorkLogEntryType;
+  note: string;
+  author_user_id: string;
+  author_name: string | null;
+  created_at: string;
+};
+
+export type DashboardSummary = {
+  role: "admin" | "technician";
+  active_report_count: number;
+  draft_report_count: number;
+  resolved_report_count: number;
+  recent_active_reports: DashboardReportSummary[];
+  recent_draft_reports: DashboardReportSummary[];
+  recent_resolved_reports: DashboardReportSummary[];
+  equipment_with_active_reports: DashboardAffectedEquipment[];
+  recent_activity: DashboardActivity[];
+};
+
 export type FaultReportAttachment = {
   id: string;
   fault_report_id: string;

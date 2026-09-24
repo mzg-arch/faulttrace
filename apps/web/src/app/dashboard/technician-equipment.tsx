@@ -56,7 +56,7 @@ export function TechnicianEquipment({ workspaceId }: { workspaceId: string }) {
   const selected = equipment.find((item) => item.id === selectedId) ?? null;
 
   return (
-    <section className="my-10 rounded-3xl border border-cyan-300/15 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="technician-equipment-title">
+    <section id="equipment" className="my-10 scroll-mt-6 rounded-3xl border border-cyan-300/15 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="technician-equipment-title">
       <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Workspace assets</p>

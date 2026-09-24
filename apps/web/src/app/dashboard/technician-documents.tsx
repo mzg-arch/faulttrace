@@ -89,7 +89,7 @@ export function TechnicianDocuments({ workspaceId }: { workspaceId: string }) {
   }
 
   return (
-    <section className="my-10 rounded-3xl border border-cyan-300/15 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="technician-documents-title">
+    <section id="documents" className="my-10 scroll-mt-6 rounded-3xl border border-cyan-300/15 bg-[#101e2d]/90 p-6 sm:p-8" aria-labelledby="technician-documents-title">
       <div className="border-b border-white/10 pb-6">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Approved evidence sources</p>
         <h2 id="technician-documents-title" className="mt-2 text-2xl font-semibold text-white">Document Library</h2>
