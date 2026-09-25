@@ -9,7 +9,7 @@ import time
 from contextlib import suppress
 from typing import Any, Iterable, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
 
 
 logger = logging.getLogger("faulttrace.gemini")
@@ -19,6 +19,7 @@ GEMINI_RETRY_BASE_SECONDS = 0.5
 GEMINI_RETRY_JITTER_SECONDS = 0.25
 GEMINI_MAX_OUTPUT_TOKENS = 8192
 GEMINI_THINKING_LEVEL = "low"
+GEMINI_BUSY_FALLBACK_MODEL = "gemini-3.5-flash-lite"
 MAX_PROVIDER_MESSAGE_LENGTH = 1000
 
 _EMAIL_PATTERN = re.compile(
@@ -230,6 +231,8 @@ class GuidedCheckDraft(BaseModel):
 class GeminiGuidanceDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    _provider_model: str = PrivateAttr(default="")
+
     status: Literal["grounded", "insufficient_evidence"]
     case_summary: CitedStatement
     safety_brief_items: list[CitedStatement] = Field(max_length=8)
@@ -410,6 +413,7 @@ def _generate_sync(
         raise GeminiGuidanceError("dependency_unavailable") from error
 
     client = None
+    active_model = model
     try:
         client = genai.Client(api_key=api_key)
         prompt = build_guidance_prompt(report_context, evidence)
@@ -425,9 +429,14 @@ def _generate_sync(
         )
         response = None
         for attempt in range(1, GEMINI_MAX_TRANSIENT_RETRIES + 2):
+            active_model = (
+                model
+                if attempt == 1 or model == GEMINI_BUSY_FALLBACK_MODEL
+                else GEMINI_BUSY_FALLBACK_MODEL
+            )
             try:
                 response = client.models.generate_content(
-                    model=model,
+                    model=active_model,
                     contents=prompt,
                     config=provider_config,
                 )
@@ -439,7 +448,7 @@ def _generate_sync(
                 _log_generation_exception(
                     error,
                     api_key=api_key,
-                    model=model,
+                    model=active_model,
                     report_id=report_id,
                     report_context=report_context,
                     evidence=evidence,
@@ -458,19 +467,22 @@ def _generate_sync(
 
         if response is None:
             raise GeminiGuidanceError("request_failed")
-        return _parse_guidance_response(
+        draft = _parse_guidance_response(
             response,
-            model=model,
+            model=active_model,
             report_id=report_id,
             evidence_chunk_count=len(evidence),
         )
+        if active_model != model:
+            draft._provider_model = active_model
+        return draft
     except GeminiGuidanceError:
         raise
     except genai_errors.APIError as error:
         _log_generation_exception(
             error,
             api_key=api_key,
-            model=model,
+            model=active_model,
             report_id=report_id,
             report_context=report_context,
             evidence=evidence,
@@ -482,7 +494,7 @@ def _generate_sync(
         _log_generation_exception(
             error,
             api_key=api_key,
-            model=model,
+            model=active_model,
             report_id=report_id,
             report_context=report_context,
             evidence=evidence,

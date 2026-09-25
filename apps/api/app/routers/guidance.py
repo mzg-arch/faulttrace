@@ -408,6 +408,7 @@ async def generate_guidance_plan(
                 [item.model_dump(mode="json") for item in evidence],
                 report_id=str(report_id),
             )
+            model_name = draft._provider_model or settings.gemini_model.strip()
             try:
                 draft = validate_grounded_draft(
                     draft,
@@ -430,7 +431,6 @@ async def generate_guidance_plan(
                         "AI output failed evidence-grounding validation. No guidance plan was saved."
                     ),
                 ) from None
-            model_name = settings.gemini_model.strip()
 
         record = await gateway.create_guidance_plan(
             {

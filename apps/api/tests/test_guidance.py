@@ -11,6 +11,7 @@ from pydantic import SecretStr
 
 from app.gemini_guidance import (
     CitedStatement,
+    GEMINI_BUSY_FALLBACK_MODEL,
     GEMINI_MAX_OUTPUT_TOKENS,
     GEMINI_THINKING_LEVEL,
     GeminiGuidanceDraft,
@@ -389,6 +390,14 @@ class GuidancePlanTests(unittest.TestCase):
         log_output = "\n".join(logs.output)
         self.assertEqual(context.exception.code, "provider_busy")
         self.assertEqual(client.models.generate_content.call_count, 3)
+        requested_models = [
+            call.kwargs["model"]
+            for call in client.models.generate_content.call_args_list
+        ]
+        self.assertEqual(
+            requested_models,
+            ["gemini-3.8-flash", GEMINI_BUSY_FALLBACK_MODEL, GEMINI_BUSY_FALLBACK_MODEL],
+        )
         self.assertEqual(sleep.call_count, 2)
         self.assertAlmostEqual(sleep.call_args_list[0].args[0], 0.6)
         self.assertAlmostEqual(sleep.call_args_list[1].args[0], 1.1)
@@ -445,7 +454,15 @@ class GuidancePlanTests(unittest.TestCase):
                     )
 
                 self.assertEqual(result.status, "grounded")
+                self.assertEqual(result._provider_model, GEMINI_BUSY_FALLBACK_MODEL)
                 self.assertEqual(client.models.generate_content.call_count, 2)
+                self.assertEqual(
+                    [
+                        call.kwargs["model"]
+                        for call in client.models.generate_content.call_args_list
+                    ],
+                    ["gemini-3.8-flash", GEMINI_BUSY_FALLBACK_MODEL],
+                )
                 sleep.assert_called_once()
                 self.assertAlmostEqual(sleep.call_args.args[0], 0.55)
                 self.assertIn("attempt=1 retrying=True", "\n".join(logs.output))
@@ -641,6 +658,32 @@ class GuidancePlanTests(unittest.TestCase):
         self.assertEqual(gateway.saved_payload["evidence_snapshot"][0]["excerpt"], evidence_match()["excerpt"])
         self.assertEqual(result.status, "grounded")
         self.assertEqual(result.evidence[0].chunk_id, 17)
+
+    def test_fallback_model_is_recorded_on_the_saved_plan(self) -> None:
+        gateway = FakeGuidanceGateway()
+        authorization = AsyncMock(return_value=(gateway, {"id": TECHNICIAN_ID}))
+        draft = grounded_draft()
+        draft._provider_model = GEMINI_BUSY_FALLBACK_MODEL
+        with (
+            patch(
+                "app.routers.guidance.authorized_workspace_technician",
+                authorization,
+            ),
+            patch(
+                "app.routers.guidance.generate_guidance_with_gemini",
+                AsyncMock(return_value=draft),
+            ),
+        ):
+            asyncio.run(
+                generate_guidance_plan(
+                    WORKSPACE_ID,
+                    REPORT_ID,
+                    "token",
+                    test_settings(),
+                )
+            )
+
+        self.assertEqual(gateway.saved_payload["model"], GEMINI_BUSY_FALLBACK_MODEL)
 
     def test_nonexistent_citation_is_rejected_without_saving(self) -> None:
         gateway = FakeGuidanceGateway()

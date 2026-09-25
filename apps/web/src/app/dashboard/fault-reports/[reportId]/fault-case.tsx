@@ -6,15 +6,14 @@ import { API_ORIGIN, apiErrorMessage, authenticatedFetch } from "@/lib/faulttrac
 import {
   SAFETY_ACKNOWLEDGEMENTS,
   formatReportDate,
-  type CitedStatement,
   type EvidenceRetrievalResponse,
   type FaultReportAttachment,
   type FaultReport,
-  type GuidancePlan,
   type WorkLogEntry,
   type WorkLogEntryType,
 } from "../../fault-report-types";
 import { DOCUMENT_TYPE_LABELS } from "../../document-types";
+import { GuidancePlanSection } from "./guidance-plan-section";
 
 type SafetyKey = (typeof SAFETY_ACKNOWLEDGEMENTS)[number]["key"];
 type SafetyState = Record<SafetyKey, boolean>;
@@ -336,7 +335,7 @@ function ApprovedEvidence({
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h3 className="font-semibold text-white">{evidence.document_title}</h3>
-                    <p className="mt-1 text-xs text-zinc-400">C{evidence.chunk_id} · {DOCUMENT_TYPE_LABELS[evidence.document_type]} · {evidence.source_revision ?? "Revision not provided"} · Page {evidence.page_number}</p>
+                    <p className="mt-1 text-xs text-zinc-400">Approved excerpt · {DOCUMENT_TYPE_LABELS[evidence.document_type]} · {evidence.source_revision ?? "Revision not provided"} · Page {evidence.page_number}</p>
                   </div>
                   {evidence.equipment_linked && <span className="rounded-full border border-emerald-300/20 bg-emerald-300/5 px-2.5 py-1 text-xs font-semibold text-emerald-200">Linked equipment</span>}
                 </div>
@@ -345,183 +344,6 @@ function ApprovedEvidence({
                   <span className="text-xs text-zinc-600">Verbatim extracted PDF text · temporary source link</span>
                   <a href={`${evidence.source_url}#page=${evidence.page_number}`} target="_blank" rel="noopener noreferrer" className="cursor-pointer rounded-md border border-teal-300/25 px-3 py-2 text-xs font-semibold text-teal-100 hover:border-teal-300/60 hover:bg-teal-300/[0.06]">Open source document</a>
                 </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function CitationChips({
-  citationIds,
-  plan,
-}: {
-  citationIds: number[];
-  plan: GuidancePlan;
-}) {
-  const availableIds = new Set(plan.evidence.map((item) => item.chunk_id));
-  return (
-    <span className="inline-flex flex-wrap gap-1.5" aria-label="Supporting citations">
-      {citationIds.map((citationId) => (
-        availableIds.has(citationId) ? (
-          <a key={citationId} href={`#guidance-evidence-${citationId}`} className="rounded-md border border-teal-300/25 bg-teal-300/5 px-2 py-1 text-[11px] font-bold text-teal-100 hover:border-teal-300/60">C{citationId}</a>
-        ) : (
-          <span key={citationId} className="rounded-md border border-amber-300/25 px-2 py-1 text-[11px] font-bold text-amber-100">C{citationId}</span>
-        )
-      ))}
-    </span>
-  );
-}
-
-function CitedList({
-  items,
-  plan,
-}: {
-  items: CitedStatement[];
-  plan: GuidancePlan;
-}) {
-  return (
-    <ul className="mt-4 space-y-3">
-      {items.map((item, index) => (
-        <li key={`${item.text}-${index}`} className="rounded-md border border-white/10 bg-[#111315] p-4 text-sm leading-7 text-zinc-200">
-          <p>{item.text}</p>
-          <div className="mt-3"><CitationChips citationIds={item.citation_ids} plan={plan} /></div>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function GuidancePlanSection({
-  workspaceId,
-  reportId,
-  role,
-  canGenerate,
-}: {
-  workspaceId: string;
-  reportId: string;
-  role: "admin" | "technician";
-  canGenerate: boolean;
-}) {
-  const [plan, setPlan] = useState<GuidancePlan | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadPlan = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await authenticatedFetch(
-        `${API_ORIGIN}/workspaces/${workspaceId}/fault-reports/${reportId}/guidance-plan`,
-      );
-      if (response.status === 404) {
-        setPlan(null);
-        return;
-      }
-      if (!response.ok) {
-        throw new Error(await apiErrorMessage(response, "Saved guidance could not be loaded."));
-      }
-      setPlan((await response.json()) as GuidancePlan);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Saved guidance could not be loaded.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [reportId, workspaceId]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => void loadPlan(), 0);
-    return () => window.clearTimeout(timer);
-  }, [loadPlan]);
-
-  async function generatePlan() {
-    if (!canGenerate || isGenerating) return;
-    setIsGenerating(true);
-    setError(null);
-    try {
-      const response = await authenticatedFetch(
-        `${API_ORIGIN}/workspaces/${workspaceId}/fault-reports/${reportId}/guidance-plan/generate`,
-        { method: "POST" },
-      );
-      if (!response.ok) {
-        throw new Error(await apiErrorMessage(response, "Evidence-grounded guidance could not be generated."));
-      }
-      setPlan((await response.json()) as GuidancePlan);
-    } catch (generationError) {
-      setError(generationError instanceof Error ? generationError.message : "Evidence-grounded guidance could not be generated.");
-    } finally {
-      setIsGenerating(false);
-    }
-  }
-
-  return (
-    <section className="rounded-lg border border-teal-300/15 bg-[#151719]/90 p-6 sm:p-8" aria-labelledby="guidance-plan-title">
-      <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-300">Evidence-grounded plan</p>
-          <h2 id="guidance-plan-title" className="mt-2 text-2xl font-semibold text-white">Safety brief and guided checks</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">Saved plans use only report context and server-retrieved approved PDF excerpts. Every grounded statement links to its exact evidence chunk.</p>
-        </div>
-        {canGenerate && (
-          <button type="button" onClick={() => void generatePlan()} disabled={isGenerating || isLoading} className="shrink-0 rounded-md bg-teal-300 px-4 py-3 text-sm font-bold text-[#0d0f10] hover:bg-teal-200 disabled:cursor-wait disabled:opacity-60">{isGenerating ? "Validating grounded guidance..." : plan ? "Generate updated guidance" : "Generate evidence-grounded guidance"}</button>
-        )}
-      </div>
-
-      <p className="mt-5 rounded-md border border-amber-300/20 bg-amber-300/5 px-4 py-3 text-xs leading-6 text-amber-100/85">FaultTrace does not replace current site procedures, formal LOTO or isolation requirements, authorization, required PPE, emergency escalation, or qualified technician judgment. Stop and escalate whenever conditions are unsafe or uncertain.</p>
-      {!canGenerate && <p className="mt-4 rounded-md border border-teal-300/15 bg-teal-300/5 px-4 py-3 text-sm text-teal-100">Read-only saved plan. Guidance cannot be generated or changed from this case view.</p>}
-      {isLoading && <p role="status" className="mt-6 rounded-md border border-white/10 p-4 text-sm text-zinc-400">Loading the latest saved guidance plan...</p>}
-      {error && <div role="alert" className="mt-6 rounded-md border border-red-300/25 bg-red-300/5 p-4 text-sm text-red-100"><p>{error}</p><button type="button" onClick={() => void loadPlan()} className="mt-3 font-semibold text-teal-200 hover:text-teal-100">Retry loading saved plan</button></div>}
-      {!isLoading && !error && !plan && <div className="mt-6 rounded-lg border border-dashed border-white/15 bg-[#111315]/60 p-6 text-center"><p className="font-medium text-zinc-200">No saved guidance plan exists for this case.</p><p className="mt-2 text-sm leading-6 text-zinc-500">{canGenerate ? "Generate a plan after approved PDF evidence has been indexed." : role === "admin" ? "The report technician did not save a plan for this case." : "No guidance plan was saved before this report was resolved."}</p></div>}
-
-      {!isLoading && plan?.status === "insufficient_evidence" && (
-        <div className="mt-6 rounded-lg border border-amber-300/25 bg-amber-300/5 p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-200">Insufficient approved evidence</p>
-          <p className="mt-3 text-sm leading-7 text-amber-50">{plan.case_summary.text}</p>
-          <p className="mt-3 text-xs leading-6 text-amber-100/70">No safety brief, guided checks, or maintenance recommendations were produced.</p>
-        </div>
-      )}
-
-      {!isLoading && plan?.status === "grounded" && (
-        <div className="mt-6 space-y-7">
-          <div className="rounded-lg border border-teal-300/15 bg-teal-300/5 p-5">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-teal-200">Case summary</p>
-            <p className="mt-3 text-sm leading-7 text-zinc-100">{plan.case_summary.text}</p>
-            <div className="mt-3"><CitationChips citationIds={plan.case_summary.citation_ids} plan={plan} /></div>
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-white">Safety Brief</h3>
-            <CitedList items={plan.safety_brief_items} plan={plan} />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-white">Guided Checks</h3>
-            <ol className="mt-4 space-y-4">
-              {plan.guided_checks.map((check, index) => (
-                <li key={`${check.title}-${index}`} className="rounded-lg border border-white/10 bg-[#111315] p-5">
-                  <div className="flex gap-3"><span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-teal-300/10 text-xs font-bold text-teal-200">{index + 1}</span><div><h4 className="font-semibold text-white">{check.title}</h4><p className="mt-2 text-sm leading-7 text-zinc-200">{check.supported_action}</p><div className="mt-3"><CitationChips citationIds={check.citation_ids} plan={plan} /></div></div></div>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-white">Escalation criteria</h3>
-            <CitedList items={plan.escalation_criteria} plan={plan} />
-          </div>
-        </div>
-      )}
-
-      {!isLoading && plan && plan.evidence.length > 0 && (
-        <div className="mt-8 border-t border-white/10 pt-7">
-          <div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-lg font-semibold text-white">Saved evidence snapshot</h3><span className="text-xs text-zinc-500">Generated {formatReportDate(plan.created_at)}</span></div>
-          <p className="mt-2 text-xs leading-6 text-zinc-500">These exact excerpts were considered when this saved plan was generated. Confirm the source is still approved before acting.</p>
-          <ul className="mt-4 space-y-3">
-            {plan.evidence.map((evidence) => (
-              <li id={`guidance-evidence-${evidence.chunk_id}`} key={evidence.chunk_id} className="scroll-mt-6 rounded-lg border border-white/10 bg-[#111315] p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-semibold text-white">C{evidence.chunk_id} · {evidence.document_title}</p><p className="mt-1 text-xs text-zinc-400">{DOCUMENT_TYPE_LABELS[evidence.document_type]} · {evidence.source_revision ?? "Revision not provided"} · Page {evidence.page_number}</p></div>{evidence.equipment_linked && <span className="rounded-full border border-emerald-300/20 px-2.5 py-1 text-xs font-semibold text-emerald-200">Linked equipment</span>}</div>
-                <blockquote className="mt-4 border-l-2 border-teal-300/40 pl-4 text-sm leading-7 text-zinc-200">{evidence.excerpt}</blockquote>
-                <div className="mt-4 text-right">{evidence.source_available && evidence.source_url ? <a href={`${evidence.source_url}#page=${evidence.page_number}`} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-teal-100 hover:text-teal-200">Open approved source</a> : <span className="text-xs text-amber-200">Source is no longer currently approved for opening</span>}</div>
               </li>
             ))}
           </ul>
@@ -815,7 +637,7 @@ function CaseWorkspace({
 
       <div id="case-tab-evidence" hidden={activeTab !== "evidence"} role="tabpanel" aria-label="Evidence" className="mt-6">{!isResolved ? <ApprovedEvidence workspaceId={workspaceId} reportId={report.id} /> : <section className="rounded-lg border border-white/10 bg-[#151719] p-6"><h2 className="text-xl font-semibold text-white">Approved evidence</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-400">This resolved case is read-only. Review saved citations and open each approved source from the Guidance tab.</p></section>}</div>
 
-      <div id="case-tab-guidance" hidden={activeTab !== "guidance"} role="tabpanel" aria-label="Guidance" className="mt-6"><GuidancePlanSection workspaceId={workspaceId} reportId={report.id} role={role} canGenerate={role === "technician" && !isResolved} /></div>
+      <div id="case-tab-guidance" hidden={activeTab !== "guidance"} role="tabpanel" aria-label="Guidance" className="mt-6"><GuidancePlanSection workspaceId={workspaceId} report={report} role={role} canGenerate={role === "technician" && !isResolved} /></div>
 
       <div id="case-tab-work-log" hidden={activeTab !== "work-log"} role="tabpanel" aria-label="Work Log" className="mt-6"><WorkLogSection report={report} role={role} workspaceId={workspaceId} onReportResolved={onReportResolved} /></div>
     </div>

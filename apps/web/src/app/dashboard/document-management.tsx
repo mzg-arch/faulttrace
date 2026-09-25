@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { API_ORIGIN, apiErrorMessage, authenticatedFetch, getAccessToken } from "@/lib/faulttrace-api";
+import { BulkDocumentUpload } from "./bulk-document-upload";
+import {
+  DOCUMENT_FILE_ACCEPT,
+  uploadDocumentWithProgress,
+  validateDocumentFile,
+} from "./document-upload-utils";
 import {
   DOCUMENT_TYPE_LABELS,
   documentIndexLabel,
@@ -11,10 +17,6 @@ import {
   type EquipmentOption,
   type LibraryDocument,
 } from "./document-types";
-
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const ALLOWED_EXTENSIONS = [".pdf", ".png", ".jpg", ".jpeg", ".webp"];
-const ALLOWED_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/webp"];
 
 type DocumentForm = {
   title: string;
@@ -39,44 +41,6 @@ function sortDocuments(documents: LibraryDocument[]) {
   return [...documents].sort((left, right) => left.title.localeCompare(right.title));
 }
 
-function validateFile(file: File | null) {
-  if (!file) return "Choose a document file.";
-  const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-  if (!ALLOWED_EXTENSIONS.includes(extension) || !ALLOWED_TYPES.includes(file.type)) {
-    return "Upload a PDF, PNG, JPG/JPEG, or WEBP file.";
-  }
-  if (file.size === 0) return "Choose a non-empty document file.";
-  if (file.size > MAX_FILE_BYTES) return "Document files must be 10 MB or smaller.";
-  return null;
-}
-
-function uploadWithProgress(
-  url: string,
-  token: string,
-  body: FormData,
-  onProgress: (percentage: number) => void,
-) {
-  return new Promise<LibraryDocument>((resolve, reject) => {
-    const request = new XMLHttpRequest();
-    request.open("POST", url);
-    request.setRequestHeader("Authorization", `Bearer ${token}`);
-    request.responseType = "json";
-    request.upload.onprogress = (event) => {
-      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
-    };
-    request.onerror = () => reject(new Error("The document service is unavailable."));
-    request.onload = () => {
-      const response = request.response as LibraryDocument | { detail?: string } | null;
-      if (request.status >= 200 && request.status < 300 && response) {
-        resolve(response as LibraryDocument);
-        return;
-      }
-      reject(new Error((response as { detail?: string } | null)?.detail || "Document upload failed."));
-    };
-    request.send(body);
-  });
-}
-
 export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
   const [documents, setDocuments] = useState<LibraryDocument[]>([]);
   const [equipment, setEquipment] = useState<EquipmentOption[]>([]);
@@ -86,6 +50,8 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [uploadMode, setUploadMode] = useState<"single" | "bulk">("single");
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [busyDocumentId, setBusyDocumentId] = useState<string | null>(null);
   const [indexingDocumentId, setIndexingDocumentId] = useState<string | null>(null);
@@ -139,6 +105,7 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
   }
 
   function editDocument(document: LibraryDocument) {
+    setUploadMode("single");
     setEditingId(document.id);
     setForm({
       title: document.title,
@@ -174,7 +141,7 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
       return;
     }
     if (!editingId) {
-      const fileError = validateFile(file);
+      const fileError = validateDocumentFile(file);
       if (fileError) {
         setFormError(fileError);
         return;
@@ -209,7 +176,7 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
         body.set("source_revision", metadata.source_revision ?? "");
         body.set("description", metadata.description ?? "");
         body.set("file", file as File);
-        saved = await uploadWithProgress(
+        saved = await uploadDocumentWithProgress(
           `${API_ORIGIN}/workspaces/${workspaceId}/documents`,
           token,
           body,
@@ -323,7 +290,38 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
         <p className="max-w-lg text-sm leading-6 text-zinc-400">Upload and maintain official evidence sources. Files remain private and open through temporary authorized links.</p>
       </div>
 
-      <div className="grid gap-8 pt-7 xl:grid-cols-[1.25fr_0.75fr]">
+      <div className="mt-6 flex flex-wrap items-center gap-2" aria-label="Document upload mode">
+        <button
+          type="button"
+          onClick={() => setUploadMode("single")}
+          disabled={isBulkUploading}
+          aria-pressed={uploadMode === "single"}
+          className={`cursor-pointer rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${uploadMode === "single" ? "border-teal-300/30 bg-teal-300/10 text-teal-100" : "border-white/10 text-zinc-400 hover:border-white/25 hover:text-white"}`}
+        >
+          Upload one document
+        </button>
+        <button
+          type="button"
+          onClick={() => setUploadMode("bulk")}
+          disabled={isBulkUploading || editingId !== null || isSaving}
+          aria-pressed={uploadMode === "bulk"}
+          className={`cursor-pointer rounded-md border px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${uploadMode === "bulk" ? "border-teal-300/30 bg-teal-300/10 text-teal-100" : "border-white/10 text-zinc-400 hover:border-white/25 hover:text-white"}`}
+        >
+          Upload multiple documents
+        </button>
+        {editingId && <span className="text-xs text-zinc-500">Finish or cancel the metadata edit before opening bulk upload.</span>}
+      </div>
+
+      {uploadMode === "bulk" && (
+        <BulkDocumentUpload
+          workspaceId={workspaceId}
+          equipment={equipment}
+          onComplete={loadLibrary}
+          onBusyChange={setIsBulkUploading}
+        />
+      )}
+
+      <div className={`grid gap-8 pt-7 ${uploadMode === "single" ? "xl:grid-cols-[1.25fr_0.75fr]" : ""}`}>
         <div>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-semibold text-white">Workspace documents</h3>
@@ -361,7 +359,7 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
           )}
         </div>
 
-        <form onSubmit={saveDocument} noValidate aria-busy={isSaving} className="h-fit rounded-lg border border-white/10 bg-[#111315] p-5 sm:p-6">
+        {uploadMode === "single" && <form onSubmit={saveDocument} noValidate aria-busy={isSaving} className="h-fit rounded-lg border border-white/10 bg-[#111315] p-5 sm:p-6">
           <div className="flex items-center justify-between gap-4"><h3 className="font-semibold text-white">{editingId ? "Edit metadata" : "Upload approved document"}</h3>{editingId && <button type="button" onClick={resetForm} disabled={isSaving} className="text-xs font-semibold text-zinc-400 hover:text-white">Cancel</button>}</div>
           <div className="mt-5 space-y-4">
             <label className="block text-sm text-zinc-300">Title<input className={inputClass} value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} disabled={isSaving} maxLength={200} /></label>
@@ -369,13 +367,13 @@ export function DocumentManagement({ workspaceId }: { workspaceId: string }) {
             <label className="block text-sm text-zinc-300">Linked equipment<select className={inputClass} value={form.equipment_id} onChange={(event) => setForm((current) => ({ ...current, equipment_id: event.target.value }))} disabled={isSaving}><option value="">General workspace document</option>{equipment.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.asset_tag ?? "no asset ID"}){item.status === "archived" ? " — archived" : ""}</option>)}</select></label>
             <label className="block text-sm text-zinc-300">Revision / reference<input className={inputClass} value={form.source_revision} onChange={(event) => setForm((current) => ({ ...current, source_revision: event.target.value }))} disabled={isSaving} maxLength={120} placeholder="Example: Rev. C / 3AXD50000044785" /></label>
             <label className="block text-sm text-zinc-300">Description<textarea className={`${inputClass} min-h-24 resize-y`} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} disabled={isSaving} maxLength={2000} /></label>
-            {!editingId && <label className="block text-sm text-zinc-300">File<input key={fileInputKey} className={`${inputClass} file:mr-3 file:rounded-md file:border-0 file:bg-teal-300 file:px-3 file:py-2 file:text-xs file:font-bold file:text-[#0d0f10]`} type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={isSaving} /><span className="mt-2 block text-xs text-zinc-500">PDF, PNG, JPG/JPEG, or WEBP · maximum 10 MB</span></label>}
+            {!editingId && <label className="block text-sm text-zinc-300">File<input key={fileInputKey} className={`${inputClass} cursor-pointer file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-teal-300 file:px-3 file:py-2 file:text-xs file:font-bold file:text-[#0d0f10]`} type="file" accept={DOCUMENT_FILE_ACCEPT} onChange={(event) => setFile(event.target.files?.[0] ?? null)} disabled={isSaving} /><span className="mt-2 block text-xs text-zinc-500">PDF, PNG, JPG/JPEG, or WEBP · maximum 10 MB</span></label>}
           </div>
           {isSaving && !editingId && <div className="mt-4" role="status"><div className="mb-2 flex justify-between text-xs text-zinc-400"><span>Uploading securely</span><span>{uploadProgress}%</span></div><div className="h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-teal-300 transition-all" style={{ width: `${uploadProgress}%` }} /></div></div>}
           {formError && <p role="alert" className="mt-4 rounded-md border border-red-300/25 bg-red-300/5 px-4 py-3 text-sm text-red-100">{formError}</p>}
           {success && <p role="status" className="mt-4 rounded-md border border-emerald-300/25 bg-emerald-300/5 px-4 py-3 text-sm text-emerald-100">{success}</p>}
           <button type="submit" disabled={isSaving} className="mt-5 w-full rounded-md bg-teal-300 px-4 py-3 text-sm font-bold text-[#0d0f10] transition hover:bg-teal-200 disabled:cursor-wait disabled:opacity-60">{isSaving ? editingId ? "Saving..." : "Uploading..." : editingId ? "Save metadata" : "Upload approved document"}</button>
-        </form>
+        </form>}
       </div>
     </section>
   );
