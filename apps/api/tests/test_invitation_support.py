@@ -54,11 +54,14 @@ class FakeInvitationGateway:
         workspace_access_exists: bool = False,
         reserve_error: SupabaseRequestError | None = None,
         send_error: SupabaseRequestError | None = None,
+        reclaimed_invitation: dict[str, str] | None = None,
     ) -> None:
         self.existing_access = workspace_access_exists
         self.reserve_error = reserve_error
         self.send_error = send_error
+        self.reclaimed_invitation = reclaimed_invitation
         self.reserve_calls = 0
+        self.reclaim_calls = 0
         self.failed_invitation_ids: list[str] = []
 
     async def workspace_access_exists(self, _workspace_id: str, _email: str) -> bool:
@@ -69,6 +72,13 @@ class FakeInvitationGateway:
         if self.reserve_error:
             raise self.reserve_error
         return {"id": "invitation-id"}
+
+    async def reclaim_failed_invitation(
+        self,
+        _invitation: dict[str, object],
+    ) -> dict[str, str] | None:
+        self.reclaim_calls += 1
+        return self.reclaimed_invitation
 
     async def send_invitation(self, _email: str, _display_name: str) -> dict[str, str]:
         if self.send_error:
@@ -164,6 +174,31 @@ class SupabaseGatewayTests(unittest.TestCase):
         self.assertNotIn(secret, message)
         self.assertNotIn(token, message)
         self.assertNotIn("another-token", message)
+
+    def test_reclaim_failed_invitation_is_strictly_conditional(self) -> None:
+        gateway = SupabaseGateway(test_settings())
+        gateway._request = AsyncMock(  # type: ignore[method-assign]
+            return_value=httpx.Response(200, json=[{"id": "failed-invitation-id"}])
+        )
+
+        result = asyncio.run(
+            gateway.reclaim_failed_invitation(
+                {
+                    "workspace_id": "workspace-id",
+                    "email": "technician@example.com",
+                    "display_name": "Technician",
+                    "role": "technician",
+                    "invited_by": "admin-user-id",
+                }
+            )
+        )
+
+        self.assertEqual(result, {"id": "failed-invitation-id"})
+        request = gateway._request.await_args
+        self.assertEqual(request.args, ("PATCH", "/rest/v1/workspace_invitations"))
+        self.assertEqual(request.kwargs["params"]["status"], "eq.failed")
+        self.assertEqual(request.kwargs["params"]["auth_user_id"], "is.null")
+        self.assertEqual(request.kwargs["json"]["status"], "sending")
 
 
 class InvitationResponseTests(unittest.TestCase):
@@ -287,6 +322,23 @@ class InvitationEndpointTests(unittest.TestCase):
         self.assertNotEqual(context.exception.detail, WORKSPACE_DUPLICATE_DETAIL)
         self.assertIn("conflict while preparing", context.exception.detail)
 
+    def test_failed_reservation_is_reclaimed_and_invitation_is_retried(self) -> None:
+        gateway = FakeInvitationGateway(
+            reserve_error=SupabaseRequestError(
+                409,
+                "reserve_invitation",
+                "23505",
+                "Unique constraint conflict",
+            ),
+            reclaimed_invitation={"id": "failed-invitation-id"},
+        )
+
+        response = run_invitation(gateway)
+
+        self.assertEqual(response.member.status, "invited")
+        self.assertEqual(gateway.reclaim_calls, 1)
+        self.assertEqual(gateway.failed_invitation_ids, [])
+
     def test_duplicate_message_requires_confirmed_workspace_access(self) -> None:
         gateway = FakeInvitationGateway(workspace_access_exists=True)
 
@@ -296,6 +348,7 @@ class InvitationEndpointTests(unittest.TestCase):
         self.assertEqual(context.exception.status_code, 409)
         self.assertEqual(context.exception.detail, WORKSPACE_DUPLICATE_DETAIL)
         self.assertEqual(gateway.reserve_calls, 0)
+        self.assertEqual(gateway.reclaim_calls, 0)
 
 
 if __name__ == "__main__":

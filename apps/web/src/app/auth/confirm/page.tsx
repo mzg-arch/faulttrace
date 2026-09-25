@@ -1,7 +1,7 @@
 "use client";
 
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { BrandMark } from "@/components/brand-mark";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -26,8 +26,14 @@ function failurePath(error: unknown) {
 }
 
 export default function ConfirmInvitationPage() {
+  const confirmationStarted = useRef(false);
+
   useEffect(() => {
-    let isActive = true;
+    // React Strict Mode replays effects during development. Keep the exchange
+    // single-run because the first pass removes one-time credentials from the
+    // address bar before awaiting Supabase.
+    if (confirmationStarted.current) return;
+    confirmationStarted.current = true;
 
     async function completeInvitation() {
       const url = new URL(window.location.href);
@@ -80,8 +86,8 @@ export default function ConfirmInvitationPage() {
         }
       }
 
-      if (exchangeError || !isActive) {
-        if (isActive) window.location.replace(failurePath(exchangeError));
+      if (exchangeError) {
+        window.location.replace(failurePath(exchangeError));
         return;
       }
 
@@ -97,12 +103,8 @@ export default function ConfirmInvitationPage() {
     }
 
     void completeInvitation().catch(() => {
-      if (isActive) window.location.replace(INVITE_UNAVAILABLE_PATH);
+      window.location.replace(INVITE_UNAVAILABLE_PATH);
     });
-
-    return () => {
-      isActive = false;
-    };
   }, []);
 
   return (

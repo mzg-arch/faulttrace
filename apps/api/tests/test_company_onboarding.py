@@ -3,8 +3,9 @@
 import asyncio
 from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+import httpx
 from fastapi import HTTPException
 from pydantic import SecretStr, ValidationError
 from starlette.requests import Request
@@ -18,7 +19,7 @@ from app.routers.onboarding import (
     workspace_slug,
 )
 from app.settings import Settings
-from app.supabase import SupabaseRequestError
+from app.supabase import SupabaseGateway, SupabaseRequestError
 
 
 def test_settings() -> Settings:
@@ -45,12 +46,15 @@ class FakeOnboardingGateway:
         invitation_id: str = "22222222-2222-2222-2222-222222222222",
         begin_error: SupabaseRequestError | None = None,
         send_error: SupabaseRequestError | None = None,
+        resume_result: dict[str, str] | None = None,
     ) -> None:
         self.workspace_id = workspace_id
         self.invitation_id = invitation_id
         self.begin_error = begin_error
         self.send_error = send_error
+        self.resume_result = resume_result
         self.begin_calls: list[dict[str, str]] = []
+        self.resume_calls: list[dict[str, str]] = []
         self.send_calls: list[tuple[str, str]] = []
         self.finalize_calls: list[tuple[str, str]] = []
         self.cancel_calls: list[tuple[str, str]] = []
@@ -66,6 +70,13 @@ class FakeOnboardingGateway:
         if self.send_error:
             raise self.send_error
         return {"id": "33333333-3333-3333-3333-333333333333"}
+
+    async def resume_company_workspace_onboarding(
+        self,
+        **values: str,
+    ) -> dict[str, str] | None:
+        self.resume_calls.append(values)
+        return self.resume_result
 
     async def finalize_invitation(self, invitation_id: str, auth_user_id: str) -> None:
         self.finalize_calls.append((invitation_id, auth_user_id))
@@ -175,7 +186,33 @@ class OnboardingEndpointTests(unittest.TestCase):
         response = run_onboarding(gateway)
 
         self.assertEqual(response.message, GENERIC_ACCEPTED_MESSAGE)
+        self.assertEqual(len(gateway.resume_calls), 1)
         self.assertEqual(gateway.send_calls, [])
+
+    def test_orphaned_pending_onboarding_is_reclaimed_and_reinvited(self) -> None:
+        gateway = FakeOnboardingGateway(
+            begin_error=SupabaseRequestError(
+                409,
+                "begin_company_workspace_onboarding",
+                "23505",
+                "Onboarding request conflicts with existing access",
+            ),
+            resume_result={
+                "workspace_id": "11111111-1111-1111-1111-111111111111",
+                "invitation_id": "22222222-2222-2222-2222-222222222222",
+            },
+        )
+
+        response = run_onboarding(gateway)
+
+        self.assertEqual(response.message, GENERIC_ACCEPTED_MESSAGE)
+        self.assertEqual(len(gateway.resume_calls), 1)
+        self.assertEqual(gateway.send_calls, [("owner@example.com", "Jordan Lee")])
+        self.assertEqual(
+            gateway.finalize_calls,
+            [("22222222-2222-2222-2222-222222222222", "33333333-3333-3333-3333-333333333333")],
+        )
+        self.assertEqual(gateway.cancel_calls, [])
 
     def test_provider_failure_cleans_up_unfinalized_workspace(self) -> None:
         gateway = FakeOnboardingGateway(
@@ -251,6 +288,103 @@ class OnboardingMigrationTests(unittest.TestCase):
         self.assertIn("grant execute on function public.begin_company_workspace_onboarding", migration)
         self.assertIn("to service_role", migration)
         self.assertIn("select 1 from public.workspace_memberships", migration)
+
+
+class OnboardingRecoveryGatewayTests(unittest.TestCase):
+    def test_only_exact_orphaned_initial_admin_invitation_is_claimed(self) -> None:
+        gateway = SupabaseGateway(test_settings())
+        gateway._request = AsyncMock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json=[
+                        {
+                            "id": "22222222-2222-2222-2222-222222222222",
+                            "workspace_id": "11111111-1111-1111-1111-111111111111",
+                            "status": "pending",
+                        }
+                    ],
+                ),
+                httpx.Response(
+                    200,
+                    json=[
+                        {
+                            "id": "11111111-1111-1111-1111-111111111111",
+                            "name": "Northstar Manufacturing",
+                            "slug": workspace_slug("Northstar Manufacturing"),
+                        }
+                    ],
+                ),
+                httpx.Response(200, json=[]),
+                httpx.Response(200, json={"users": []}),
+                httpx.Response(
+                    200,
+                    json=[{"id": "22222222-2222-2222-2222-222222222222"}],
+                ),
+            ]
+        )
+
+        result = asyncio.run(
+            gateway.resume_company_workspace_onboarding(
+                workspace_name="Northstar Manufacturing",
+                workspace_slug=workspace_slug("Northstar Manufacturing"),
+                email="owner@example.com",
+                display_name="Jordan Lee",
+            )
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "workspace_id": "11111111-1111-1111-1111-111111111111",
+                "invitation_id": "22222222-2222-2222-2222-222222222222",
+            },
+        )
+        claim_call = gateway._request.await_args_list[-1]
+        self.assertEqual(claim_call.args[:2], ("PATCH", "/rest/v1/workspace_invitations"))
+        self.assertEqual(claim_call.kwargs["params"]["status"], "eq.pending")
+        self.assertEqual(claim_call.kwargs["params"]["auth_user_id"], "is.null")
+        self.assertEqual(claim_call.kwargs["json"]["status"], "sending")
+
+    def test_existing_workspace_member_prevents_recovery_claim(self) -> None:
+        gateway = SupabaseGateway(test_settings())
+        gateway._request = AsyncMock(
+            side_effect=[
+                httpx.Response(
+                    200,
+                    json=[
+                        {
+                            "id": "22222222-2222-2222-2222-222222222222",
+                            "workspace_id": "11111111-1111-1111-1111-111111111111",
+                            "status": "pending",
+                        }
+                    ],
+                ),
+                httpx.Response(
+                    200,
+                    json=[
+                        {
+                            "id": "11111111-1111-1111-1111-111111111111",
+                            "name": "Northstar Manufacturing",
+                            "slug": workspace_slug("Northstar Manufacturing"),
+                        }
+                    ],
+                ),
+                httpx.Response(200, json=[{"user_id": "existing-user"}]),
+            ]
+        )
+
+        result = asyncio.run(
+            gateway.resume_company_workspace_onboarding(
+                workspace_name="Northstar Manufacturing",
+                workspace_slug=workspace_slug("Northstar Manufacturing"),
+                email="owner@example.com",
+                display_name="Jordan Lee",
+            )
+        )
+
+        self.assertIsNone(result)
+        self.assertEqual(gateway._request.await_count, 3)
 
 
 if __name__ == "__main__":

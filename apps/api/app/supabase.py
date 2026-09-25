@@ -144,6 +144,38 @@ class SupabaseGateway:
         )
         return response.json()[0]
 
+    async def reclaim_failed_invitation(
+        self,
+        invitation: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Atomically reuse an unlinked failed invitation reservation.
+
+        The conditional update deliberately excludes pending/accepted invitations and
+        any row already linked to an Auth user. The unique workspace/email constraint
+        means at most one row can be returned.
+        """
+        response = await self._request(
+            "PATCH",
+            "/rest/v1/workspace_invitations",
+            key=self.secret_key,
+            params={
+                "workspace_id": f"eq.{invitation['workspace_id']}",
+                "email": f"eq.{invitation['email']}",
+                "status": "eq.failed",
+                "auth_user_id": "is.null",
+            },
+            json={
+                "display_name": invitation["display_name"],
+                "role": invitation["role"],
+                "invited_by": invitation["invited_by"],
+                "status": "sending",
+            },
+            headers={"Prefer": "return=representation"},
+            operation="reclaim_failed_invitation",
+        )
+        rows = response.json()
+        return rows[0] if isinstance(rows, list) and len(rows) == 1 else None
+
     async def begin_company_workspace_onboarding(
         self,
         *,
@@ -178,6 +210,115 @@ class SupabaseGateway:
             "workspace_id": str(row["workspace_id"]),
             "invitation_id": str(row["invitation_id"]),
         }
+
+    async def resume_company_workspace_onboarding(
+        self,
+        *,
+        workspace_name: str,
+        workspace_slug: str,
+        email: str,
+        display_name: str,
+    ) -> dict[str, str] | None:
+        """Claim one orphaned initial-admin invitation for a safe email retry."""
+        invitation_response = await self._request(
+            "GET",
+            "/rest/v1/workspace_invitations",
+            key=self.secret_key,
+            params={
+                "select": "id,workspace_id,status",
+                "email": f"eq.{email}",
+                "role": "eq.admin",
+                "invited_by": "is.null",
+                "auth_user_id": "is.null",
+                "status": "in.(pending,failed)",
+                "order": "created_at.desc",
+                "limit": "2",
+            },
+            operation="find_orphaned_company_onboarding",
+        )
+        invitations = invitation_response.json()
+        if not isinstance(invitations, list) or len(invitations) != 1:
+            return None
+
+        invitation = invitations[0]
+        invitation_id = str(invitation.get("id") or "")
+        workspace_id = str(invitation.get("workspace_id") or "")
+        current_status = str(invitation.get("status") or "")
+        if not invitation_id or not workspace_id or current_status not in {"pending", "failed"}:
+            return None
+
+        workspace_response = await self._request(
+            "GET",
+            "/rest/v1/workspaces",
+            key=self.secret_key,
+            params={
+                "select": "id,name,slug",
+                "id": f"eq.{workspace_id}",
+                "limit": "1",
+            },
+            operation="verify_orphaned_company_workspace",
+        )
+        workspaces = workspace_response.json()
+        if not isinstance(workspaces, list) or len(workspaces) != 1:
+            return None
+        workspace = workspaces[0]
+        if (
+            str(workspace.get("name") or "").strip().casefold()
+            != workspace_name.strip().casefold()
+            or workspace.get("slug") != workspace_slug
+        ):
+            return None
+
+        membership_response = await self._request(
+            "GET",
+            "/rest/v1/workspace_memberships",
+            key=self.secret_key,
+            params={
+                "select": "user_id",
+                "workspace_id": f"eq.{workspace_id}",
+                "limit": "1",
+            },
+            operation="verify_orphaned_company_memberships",
+        )
+        if membership_response.json():
+            return None
+
+        auth_response = await self._request(
+            "GET",
+            "/auth/v1/admin/users",
+            key=self.secret_key,
+            params={"page": "1", "per_page": "50", "filter": email},
+            operation="verify_orphaned_company_auth_user",
+        )
+        auth_payload = auth_response.json()
+        auth_users = auth_payload.get("users", []) if isinstance(auth_payload, dict) else []
+        normalized_email = email.strip().casefold()
+        if any(
+            isinstance(user, dict)
+            and str(user.get("email") or "").strip().casefold() == normalized_email
+            for user in auth_users
+        ):
+            return None
+
+        claim_response = await self._request(
+            "PATCH",
+            "/rest/v1/workspace_invitations",
+            key=self.secret_key,
+            params={
+                "id": f"eq.{invitation_id}",
+                "workspace_id": f"eq.{workspace_id}",
+                "status": f"eq.{current_status}",
+                "invited_by": "is.null",
+                "auth_user_id": "is.null",
+            },
+            json={"status": "sending", "display_name": display_name},
+            headers={"Prefer": "return=representation"},
+            operation="claim_orphaned_company_onboarding",
+        )
+        claimed = claim_response.json()
+        if not isinstance(claimed, list) or len(claimed) != 1:
+            return None
+        return {"workspace_id": workspace_id, "invitation_id": invitation_id}
 
     async def cancel_company_workspace_onboarding(
         self,

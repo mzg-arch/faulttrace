@@ -167,17 +167,30 @@ async def create_company_workspace(
         )
     except SupabaseRequestError as error:
         if _is_duplicate(error):
-            return WorkspaceOnboardingResponse(message=GENERIC_ACCEPTED_MESSAGE)
-        logger.warning(
-            "Onboarding transaction rejected status=%s code=%s operation=%s",
-            error.status_code,
-            error.code or "unknown",
-            error.operation,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=SERVICE_ERROR_MESSAGE,
-        ) from None
+            try:
+                onboarding = await gateway.resume_company_workspace_onboarding(
+                    workspace_name=payload.workspace_name,
+                    workspace_slug=workspace_slug(payload.workspace_name),
+                    email=payload.email,
+                    display_name=payload.administrator_name,
+                )
+            except (httpx.HTTPError, SupabaseRequestError):
+                logger.warning("Orphaned company onboarding recovery lookup failed")
+                return WorkspaceOnboardingResponse(message=GENERIC_ACCEPTED_MESSAGE)
+            if onboarding is None:
+                return WorkspaceOnboardingResponse(message=GENERIC_ACCEPTED_MESSAGE)
+            logger.info("Resuming an orphaned initial administrator invitation")
+        else:
+            logger.warning(
+                "Onboarding transaction rejected status=%s code=%s operation=%s",
+                error.status_code,
+                error.code or "unknown",
+                error.operation,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=SERVICE_ERROR_MESSAGE,
+            ) from None
     except httpx.HTTPError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

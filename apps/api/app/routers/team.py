@@ -201,6 +201,13 @@ async def invite_member(
     settings: SettingsDependency,
 ) -> InviteMemberResponse:
     gateway, caller = await authorized_admin(workspace_id, token, settings)
+    invitation_record = {
+        "workspace_id": str(workspace_id),
+        "email": payload.email,
+        "display_name": payload.display_name,
+        "role": payload.role,
+        "invited_by": caller["id"],
+    }
 
     try:
         workspace_access_exists = await gateway.workspace_access_exists(
@@ -220,15 +227,7 @@ async def invite_member(
         )
 
     try:
-        invitation = await gateway.reserve_invitation(
-            {
-                "workspace_id": str(workspace_id),
-                "email": payload.email,
-                "display_name": payload.display_name,
-                "role": payload.role,
-                "invited_by": caller["id"],
-            }
-        )
+        invitation = await gateway.reserve_invitation(invitation_record)
     except SupabaseRequestError as error:
         if error.status_code == status.HTTP_409_CONFLICT:
             try:
@@ -237,17 +236,35 @@ async def invite_member(
                     payload.email,
                 )
             except (httpx.HTTPError, SupabaseRequestError):
-                workspace_access_exists = False
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Existing workspace access could not be verified.",
+                ) from None
             if workspace_access_exists:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=WORKSPACE_DUPLICATE_DETAIL,
                 ) from None
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Supabase reported a conflict while preparing the invitation. Try again.",
-            ) from None
-        if error.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
+
+            try:
+                invitation = await gateway.reclaim_failed_invitation(invitation_record)
+            except (httpx.HTTPError, SupabaseRequestError):
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="The failed invitation could not be prepared for retry.",
+                ) from None
+            if invitation:
+                logger.info(
+                    "Reclaimed failed invitation reservation workspace_id=%s role=%s",
+                    workspace_id,
+                    payload.role,
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Supabase reported a conflict while preparing the invitation. Try again.",
+                ) from None
+        elif error.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN):
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=(
@@ -255,15 +272,16 @@ async def invite_member(
                     "Check the API server configuration."
                 ),
             ) from None
-        if error.status_code == status.HTTP_404_NOT_FOUND:
+        elif error.status_code == status.HTTP_404_NOT_FOUND:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="The Supabase invitation data service is not available.",
             ) from None
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="The invitation could not be prepared.",
-        ) from None
+        elif error.status_code != status.HTTP_409_CONFLICT:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="The invitation could not be prepared.",
+            ) from None
     except httpx.HTTPError:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
