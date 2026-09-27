@@ -3,7 +3,15 @@ import type { AuthError, Session } from "@supabase/supabase-js";
 import { browserFetch, fetchWithSingleAuthRetry } from "@/lib/authenticated-fetch";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
-export const API_ORIGIN = "http://localhost:8000";
+const configuredApiOrigin = process.env.NEXT_PUBLIC_API_URL?.trim();
+
+function resolveApiOrigin() {
+  if (configuredApiOrigin) return configuredApiOrigin.replace(/\/+$/, "");
+  if (process.env.NODE_ENV === "development") return "http://localhost:8000";
+  throw new Error("NEXT_PUBLIC_API_URL is required outside local development.");
+}
+
+export const API_ORIGIN = resolveApiOrigin();
 
 type SessionResult = {
   data: { session: Session | null };
